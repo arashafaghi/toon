@@ -37,25 +37,8 @@ def _plugins_dir() -> Path:
 class ToonApp(App[None]):
     """Interactive REPL host with local plugin support."""
 
-    CSS = """
-    Screen {
-        layout: vertical;
-    }
-
-    #content {
-        height: 1fr;
-        border: round $panel;
-    }
-
-    #repl {
-        height: 40%;
-        border: round $accent;
-    }
-
-    #repl-log {
-        height: 1fr;
-    }
-    """
+    # Load styles from the external file
+    CSS_PATH = "style.tcss"
 
     BINDINGS = [
         Binding("escape", "pop_view", "Back", show=False),

@@ -1,0 +1,46 @@
+/* --- Safe Color & Border Theme Only --- */
+Screen {
+    background: #0d1117;
+    color: #c9d1d9;
+}
+
+/* Style your main content area cleanly without forcing layout grids */
+#content {
+    background: #161b22;
+    border: solid #30363d;
+}
+
+#content:focus-within {
+    border: solid #58a6ff;
+}
+
+/* Style the REPL console matching the dark aesthetic */
+#repl {
+    background: #161b22;
+    border: solid #30363d;
+}
+
+#repl:focus-within {
+    border: solid #58a6ff;
+}
+
+#repl-log {
+    background: #090d16;
+    color: #8b949e;
+}
+
+/* Status colors for text markup */
+.status-success {
+    color: #3fb950;
+    text-style: bold;
+}
+
+.status-running {
+    color: #d29922;
+    text-style: bold;
+}
+
+.status-failed {
+    color: #f85149;
+    text-style: bold;
+}
