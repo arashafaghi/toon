@@ -1,0 +1,38 @@
+[project]
+name = "toon"
+version = "0.1.0"
+description = "A minimal Textual plugin runner (architecture proof)"
+readme = "README.md"
+authors = [
+    { name = "Arash Afaghi", email = "afaghi@gmail.com" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic>=2.9",
+    "textual>=0.85",
+]
+
+[project.scripts]
+toon = "toon.app:main"
+
+[build-system]
+requires = ["uv_build>=0.12.21,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
