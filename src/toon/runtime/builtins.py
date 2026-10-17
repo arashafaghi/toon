@@ -32,6 +32,7 @@ def register_builtins(
         Command("help", _make_help(registry), "List available commands, screens, and widgets.")
     )
     registry.register_command(Command("clear", _clear, "Clear the REPL output."))
+    registry.register_command(Command("reset", _reset, "Unload all plugin widgets and screens."))
     registry.register_command(
         Command("plugins", _make_plugins(plugins), "List loaded plugins and load failures.")
     )
@@ -86,6 +87,12 @@ def _clear(ctx: CommandContext) -> None:
     """Clear the REPL output pane."""
     ctx.host.clear_output()
     return None
+
+
+def _reset(ctx: CommandContext) -> str:
+    """Unload every widget and screen contribution via the host."""
+    ctx.host.reset_views()
+    return "Reset: unloaded all widget and screen contributions."
 
 
 def _echo(ctx: CommandContext) -> str:

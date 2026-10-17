@@ -16,6 +16,7 @@ Screen {
 
 /* Style the REPL console matching the dark aesthetic */
 #repl {
+    height: 10;
     background: #161b22;
     border: solid #30363d;
 }

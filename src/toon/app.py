@@ -26,6 +26,7 @@ from toon.ui.content import ContentArea
 from toon.ui.repl import Repl
 
 _PLUGINS_ENV = "TOON_PLUGINS_DIR"
+_EMPTY_STATE_MESSAGE = "No active view. Run a command that opens a widget or a screen."
 
 
 def _plugins_dir() -> Path:
@@ -67,9 +68,7 @@ class ToonApp(App[None]):
             repl.write_output(f"[red]Plugin '{failure.name}' failed to load: {failure.error}[/red]")
         if not loaded and not self.load_report.failures:
             repl.write_output("No plugins found. Type 'help' for available commands.")
-        self.query_one(ContentArea).show_message(
-            "No active view. Run a command that opens a widget or a screen."
-        )
+        self.query_one(ContentArea).show_message(_EMPTY_STATE_MESSAGE)
 
     # --- ViewHost implementation -------------------------------------------
 
@@ -84,6 +83,12 @@ class ToonApp(App[None]):
     def clear_output(self) -> None:
         """Clear the REPL output pane."""
         self.query_one(Repl).clear_output()
+
+    def reset_views(self) -> None:
+        """Unload every UI contribution and return to a clean base screen."""
+        while len(self.screen_stack) > 1:
+            self.pop_screen()
+        self.query_one(ContentArea).show_message(_EMPTY_STATE_MESSAGE)
 
     # --- Actions -----------------------------------------------------------
 

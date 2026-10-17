@@ -63,6 +63,13 @@ class ViewHost(Protocol):
     def clear_output(self) -> None:
         """Clear the REPL output pane (used by the built-in ``clear`` command)."""
 
+    def reset_views(self) -> None:
+        """Unload every UI contribution (used by the built-in ``reset`` command).
+
+        Returns to the base screen and unmounts any widget contributions from
+        the host content area, leaving the host in a clean starting state.
+        """
+
 
 @dataclass(frozen=True, slots=True)
 class CommandContext:

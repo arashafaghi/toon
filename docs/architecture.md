@@ -65,6 +65,8 @@ Everything below is defined in `src/toon/api/extension.py` and re-exported from
   - `open_screen(name: str) -> None`
   - `show_widget(name: str) -> None`
   - `clear_output() -> None` (used by the built-in `clear` command)
+  - `reset_views() -> None` (used by the built-in `reset` command; pops plugin
+    screens and unmounts widget contributions)
 - **`CommandContext`** (frozen, slotted dataclass):
   - `args: tuple[str, ...]`
   - `host: ViewHost`
@@ -101,8 +103,8 @@ Duplicate or invalid names raise `RegistrationError`.
 - Handlers return **`str`** (output text) or **`None`** (no output). Handlers
   **never write to the REPL directly**.
 - **`help` is generated from registered commands**, not a hardcoded list.
-  Built-in **`help`**, **`clear`**, and **`plugins`** commands are registered by
-  the host at startup.
+  Built-in **`help`**, **`clear`**, **`plugins`**, **`echo`**, and **`reset`**
+  commands are registered by the host at startup.
 - Unknown commands and invalid input produce a `CommandResult` with an `error`
   message and must **never crash the app**.
 
