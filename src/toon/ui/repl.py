@@ -76,6 +76,10 @@ class Repl(Vertical):
         if self._log is not None:
             self._log.clear()
 
+    def write_output(self, text: str) -> None:
+        """Append ``text`` to the output log (public entry point for the host)."""
+        self._write(text)
+
     def _write(self, text: str) -> None:
         """Append ``text`` to the output log when it is available."""
         if self._log is not None:
