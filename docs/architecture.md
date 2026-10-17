@@ -121,6 +121,36 @@ Duplicate or invalid names raise `RegistrationError`.
   Textual screen stack** and **`Escape` pops back** to the REPL. The REPL lives
   on the base screen and is **never destroyed**.
 
+### Command-to-view mechanism (worked example)
+
+The mechanism is: a command handler calls `ctx.host` — nothing else. There is no
+second navigation path, and the host never special-cases a plugin name.
+
+```python
+# plugins/ui_demo/plugin.py (reference UI extension, M3)
+def register(registry: ExtensionRegistry) -> None:
+    registry.register_widget("demo_widget", make_demo_widget, description="...")
+    registry.register_screen("demo_screen", make_demo_screen, description="...")
+    registry.register_command(Command("demo_widget", demo_widget, "Show the widget."))
+    registry.register_command(Command("demo_screen", demo_screen, "Open the screen."))
+
+
+def demo_widget(ctx: CommandContext) -> str:
+    ctx.host.show_widget("demo_widget")   # -> mounted in the content area
+    return "Showing the 'demo_widget' widget in the content area."
+
+
+def demo_screen(ctx: CommandContext) -> str:
+    ctx.host.open_screen("demo_screen")   # -> pushed; Escape returns to the REPL
+    return "Opened the 'demo_screen' view. Press Escape to return to the REPL."
+```
+
+- `show_widget(name)` calls the registered factory for a **fresh** widget and
+  mounts it in the host content area (replacing any current content).
+- `open_screen(name)` calls the registered factory for a **fresh** screen and
+  pushes it; `Escape` (host binding) pops it, returning to the REPL.
+- An unknown `name` surfaces as a normal `CommandResult` error, not a crash.
+
 ## 8. Failure handling
 
 - Per-plugin import/registration errors are caught around `register()`, reported

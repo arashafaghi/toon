@@ -84,6 +84,9 @@ class ToonApp(App[None]):
             repl.write_output(f"[red]Plugin '{failure.name}' failed to load: {failure.error}[/red]")
         if not loaded and not self.load_report.failures:
             repl.write_output("No plugins found. Type 'help' for available commands.")
+        self.query_one(ContentArea).show_message(
+            "No active view. Run a command that opens a widget or a screen."
+        )
 
     # --- ViewHost implementation -------------------------------------------
 
