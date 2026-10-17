@@ -1,0 +1,160 @@
+"""In-memory registry of commands and UI contributions.
+
+The registry is the host's single source of truth for what the built-ins and
+any plugins have registered. Names are validated with pydantic, duplicates are
+rejected with a user-facing :class:`~toon.api.RegistrationError`, and insertion
+order is preserved so ``help`` output stays stable.
+
+Textual types are referenced only under ``TYPE_CHECKING``: the runtime layer
+stores factories but never imports rendering code at runtime.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field, ValidationError
+
+from toon.api import (
+    Command,
+    ExtensionRegistry,
+    RegistrationError,
+    ScreenFactory,
+    WidgetFactory,
+)
+
+if TYPE_CHECKING:
+    from textual.screen import Screen
+    from textual.widget import Widget
+
+__all__ = ["CommandInfo", "Registry", "ViewInfo"]
+
+_NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9_-]*$"
+
+
+class _Name(BaseModel):
+    """Throwaway model used only to validate a registration name."""
+
+    name: str = Field(min_length=1, pattern=_NAME_PATTERN)
+
+
+@dataclass(frozen=True, slots=True)
+class CommandInfo:
+    """A command's name and description, for listings."""
+
+    name: str
+    description: str
+
+
+@dataclass(frozen=True, slots=True)
+class ViewInfo:
+    """A screen or widget's name and description, for listings."""
+
+    name: str
+    description: str
+
+
+def _checked_name(kind: str, name: str) -> None:
+    """Raise :class:`RegistrationError` when ``name`` is not a valid identifier."""
+    try:
+        _Name(name=name)
+    except ValidationError:
+        raise RegistrationError(
+            f"{kind} name {name!r} is invalid: expected a name starting with a "
+            "letter and containing only letters, digits, underscores, or hyphens."
+        ) from None
+
+
+class Registry(ExtensionRegistry):
+    """Insertion-ordered store of commands, screen factories, and widget factories.
+
+    Commands, screens, and widgets live in independent namespaces, so a command
+    and a screen may legitimately share the same name.
+    """
+
+    def __init__(self) -> None:
+        self._commands: dict[str, Command] = {}
+        self._screens: dict[str, tuple[ScreenFactory, str]] = {}
+        self._widgets: dict[str, tuple[WidgetFactory, str]] = {}
+
+    # --- ExtensionRegistry implementation ----------------------------------
+
+    def register_command(self, command: Command) -> None:
+        """Register ``command``; raise on an invalid or duplicate name."""
+        _checked_name("Command", command.name)
+        if command.name in self._commands:
+            raise RegistrationError(f"Command '{command.name}' is already registered.")
+        self._commands[command.name] = command
+
+    def register_screen(self, name: str, factory: ScreenFactory, *, description: str = "") -> None:
+        """Register a screen factory under ``name``; raise on a duplicate."""
+        _checked_name("Screen", name)
+        if name in self._screens:
+            raise RegistrationError(f"Screen '{name}' is already registered.")
+        self._screens[name] = (factory, description)
+
+    def register_widget(self, name: str, factory: WidgetFactory, *, description: str = "") -> None:
+        """Register a widget factory under ``name``; raise on a duplicate."""
+        _checked_name("Widget", name)
+        if name in self._widgets:
+            raise RegistrationError(f"Widget '{name}' is already registered.")
+        self._widgets[name] = (factory, description)
+
+    # --- Queries -----------------------------------------------------------
+
+    @property
+    def commands(self) -> tuple[Command, ...]:
+        """Registered commands, in insertion order."""
+        return tuple(self._commands.values())
+
+    def command_infos(self) -> tuple[CommandInfo, ...]:
+        """Name/description pairs for every registered command."""
+        return tuple(
+            CommandInfo(name=command.name, description=command.description)
+            for command in self._commands.values()
+        )
+
+    def get_command(self, name: str) -> Command | None:
+        """Return the command registered under ``name``, or ``None``."""
+        return self._commands.get(name)
+
+    def screen_infos(self) -> tuple[ViewInfo, ...]:
+        """Name/description pairs for every registered screen."""
+        return tuple(
+            ViewInfo(name=name, description=description)
+            for name, (_, description) in self._screens.items()
+        )
+
+    def widget_infos(self) -> tuple[ViewInfo, ...]:
+        """Name/description pairs for every registered widget."""
+        return tuple(
+            ViewInfo(name=name, description=description)
+            for name, (_, description) in self._widgets.items()
+        )
+
+    def has_screen(self, name: str) -> bool:
+        """Return ``True`` when a screen is registered under ``name``."""
+        return name in self._screens
+
+    def has_widget(self, name: str) -> bool:
+        """Return ``True`` when a widget is registered under ``name``."""
+        return name in self._widgets
+
+    # --- Factory invocation ------------------------------------------------
+
+    def create_screen(self, name: str) -> Screen:
+        """Return a fresh screen from the factory registered under ``name``."""
+        try:
+            factory, _ = self._screens[name]
+        except KeyError:
+            raise KeyError(f"No screen registered under '{name}'.") from None
+        return factory()
+
+    def create_widget(self, name: str) -> Widget:
+        """Return a fresh widget from the factory registered under ``name``."""
+        try:
+            factory, _ = self._widgets[name]
+        except KeyError:
+            raise KeyError(f"No widget registered under '{name}'.") from None
+        return factory()

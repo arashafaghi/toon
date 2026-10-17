@@ -60,6 +60,9 @@ class ViewHost(Protocol):
     def show_widget(self, name: str) -> None:
         """Mount the registered widget ``name`` in the host content area."""
 
+    def clear_output(self) -> None:
+        """Clear the REPL output pane (used by the built-in ``clear`` command)."""
+
 
 @dataclass(frozen=True, slots=True)
 class CommandContext:

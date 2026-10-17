@@ -64,6 +64,7 @@ Everything below is defined in `src/toon/api/extension.py` and re-exported from
   handlers:
   - `open_screen(name: str) -> None`
   - `show_widget(name: str) -> None`
+  - `clear_output() -> None` (used by the built-in `clear` command)
 - **`CommandContext`** (frozen, slotted dataclass):
   - `args: tuple[str, ...]`
   - `host: ViewHost`
