@@ -44,7 +44,14 @@ if TYPE_CHECKING:
         NetrcAuth,
         NoAuth,
     )
-    from toon.api.widgets import FlowLane, FlowMode, FlowTrack, render_track
+    from toon.api.widgets import (
+        FlowEdge,
+        FlowLane,
+        FlowMode,
+        FlowTrack,
+        render_edge,
+        render_track,
+    )
 
 __all__ = [
     "Auth",
@@ -55,6 +62,7 @@ __all__ = [
     "CommandHandler",
     "CommandResult",
     "ExtensionRegistry",
+    "FlowEdge",
     "FlowLane",
     "FlowMode",
     "FlowTrack",
@@ -69,6 +77,7 @@ __all__ = [
     "ViewHost",
     "WidgetFactory",
     "logger",
+    "render_edge",
     "render_track",
 ]
 
@@ -87,7 +96,9 @@ _LAZY_EXPORTS: dict[str, frozenset[str]] = {
             "NoAuth",
         }
     ),
-    "toon.api.widgets": frozenset({"FlowLane", "FlowMode", "FlowTrack", "render_track"}),
+    "toon.api.widgets": frozenset(
+        {"FlowEdge", "FlowLane", "FlowMode", "FlowTrack", "render_edge", "render_track"}
+    ),
 }
 
 

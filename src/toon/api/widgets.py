@@ -25,10 +25,13 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Static
 
-__all__ = ["FlowLane", "FlowMode", "FlowTrack", "render_track"]
+__all__ = ["FlowEdge", "FlowLane", "FlowMode", "FlowTrack", "render_edge", "render_track"]
 
 #: ``"ping-pong"`` reverses at each end; ``"one-way"`` loops back to the start.
 FlowMode = Literal["ping-pong", "one-way"]
+
+#: Axis a flow edge runs along.
+_Orientation = Literal["horizontal", "vertical"]
 
 _DOTS = "·"
 
@@ -317,3 +320,195 @@ class FlowLane(Horizontal):
     def _on_track_finished(self) -> None:
         self.add_class("done")
         self.post_message(self.Finished())
+
+
+# --- flow edges (wire + travelling glow) -----------------------------------
+
+_EDGE_WIRE = "┄"
+_EDGE_WIRE_VERTICAL = "┆"
+_EDGE_PACKET = "●"
+_EDGE_TRAIL = "·"
+
+
+def render_edge(
+    phase: float,
+    length: int,
+    *,
+    orientation: _Orientation = "horizontal",
+    direction: int = 1,
+    wire: str = _EDGE_WIRE,
+    packet: str = _EDGE_PACKET,
+    trail: str = _EDGE_TRAIL,
+    trail_length: int = 3,
+) -> str:
+    """Render one edge frame: a wire with a glow travelling along it.
+
+    ``phase`` runs ``0.0`` (wire start) to ``1.0`` (wire end); ``direction`` is
+    positive for right/down, negative for left/up. Returns a single line, or one
+    line per cell when ``orientation == "vertical"``.
+    """
+    length = max(2, length)
+    position = min(1.0, max(0.0, phase)) * (length - 1)
+    head = min(length - 1, max(0, int(round(position))))
+
+    cells = [wire] * length
+    cells[head] = packet
+
+    step = -1 if direction >= 0 else 1  # walk backwards along the flow
+    for offset in range(1, trail_length + 1):
+        index = head + step * offset
+        if 0 <= index < length:
+            cells[index] = trail
+
+    return "\n".join(cells) if orientation == "vertical" else "".join(cells)
+
+
+class FlowEdge(Static):
+    """A wire (dashed line) with a glowing pulse travelling along it, one-way.
+
+    Like a data packet on a cable: the pulse starts at one end, runs to the
+    other, and repeats. Reusable across plugins; it owns the animation
+    (:meth:`start` / :meth:`pause` / :meth:`resume` / :meth:`restart`), repaints
+    only when the frame changes, and calls ``on_finished`` once if a finite
+    ``traversals`` count is given (by default it loops forever).
+    """
+
+    DEFAULT_CSS = """
+    FlowEdge {
+        width: auto;
+        height: auto;
+        color: #58a6ff;
+    }
+    FlowEdge.done {
+        color: #3fb950;
+    }
+    """
+
+    phase = reactive(0.0, layout=False)
+
+    def __init__(
+        self,
+        *,
+        length: int = 24,
+        orientation: _Orientation = "horizontal",
+        direction: int = 1,
+        duration: float = 1.2,
+        traversals: int | None = None,
+        wire: str | None = None,
+        packet: str = _EDGE_PACKET,
+        trail: str = _EDGE_TRAIL,
+        trail_length: int = 3,
+        easing: str = "linear",
+        **kwargs: Any,
+    ) -> None:
+        super().__init__("", **kwargs)
+        self._length = max(2, length)
+        self._orientation = orientation
+        self._direction = direction
+        self._duration = duration
+        self._traversals = traversals
+        self._wire = (
+            wire
+            if wire is not None
+            else (_EDGE_WIRE_VERTICAL if orientation == "vertical" else _EDGE_WIRE)
+        )
+        self._packet = packet
+        self._trail = trail
+        self._trail_length = max(0, trail_length)
+        self._easing = easing
+        self._count = 0
+        self._is_running = False
+        self._done = False
+        self._last = ""
+        self.on_finished: Callable[[], None] | None = None
+
+    # --- lifecycle ---------------------------------------------------------
+
+    def on_mount(self) -> None:
+        """Render the first frame and start flowing."""
+        self._repaint()
+        self.start()
+
+    def watch_phase(self, _value: float) -> None:
+        """Re-render whenever the animation advances the phase."""
+        self._repaint()
+
+    @property
+    def is_done(self) -> bool:
+        """Whether a finite edge has finished all its traversals."""
+        return self._done
+
+    # --- control -----------------------------------------------------------
+
+    def start(self) -> None:
+        """Reset to the start and flow."""
+        self.remove_class("done")
+        self._count = 0
+        self._done = False
+        self._is_running = True
+        self.phase = 0.0
+        self._run(self._duration)
+
+    async def pause(self) -> None:
+        """Freeze the pulse where it is."""
+        self._is_running = False
+        await self.stop_animation("phase", complete=False)
+
+    def resume(self) -> None:
+        """Continue to the end over the remaining time."""
+        self._is_running = True
+        remaining = max(0.05, self._duration * (1.0 - self.phase))
+        self._run(remaining)
+
+    async def restart(self) -> None:
+        """Stop and start over."""
+        await self.stop_animation("phase", complete=False)
+        self.start()
+
+    def _run(self, duration: float) -> None:
+        self.animate(
+            "phase",
+            1.0,
+            duration=duration,
+            easing=self._easing,
+            on_complete=self._on_complete,
+        )
+
+    def _on_complete(self) -> None:
+        if not self._is_running:
+            return
+        self._count += 1
+        if self._traversals is not None and self._count >= self._traversals:
+            self._finish()
+            return
+        self.phase = 0.0
+        self._run(self._duration)
+
+    def _finish(self) -> None:
+        self._is_running = False
+        self._done = True
+        self.add_class("done")
+        if self.on_finished is not None:
+            self.on_finished()
+
+    async def on_unmount(self) -> None:
+        """Stop any in-flight animation when the edge is removed."""
+        await self.stop_animation("phase", complete=False)
+
+    # --- rendering ---------------------------------------------------------
+
+    def _repaint(self) -> None:
+        text = render_edge(
+            self.phase,
+            self._length,
+            orientation=self._orientation,
+            direction=self._direction,
+            wire=self._wire,
+            packet=self._packet,
+            trail=self._trail,
+            trail_length=self._trail_length,
+        )
+        if text != self._last:  # only touch the DOM when the frame changes
+            self._last = text
+            # Emphasise the packet so the glow reads on a dim wire.
+            self.update(text.replace(self._packet, f"[bold]{self._packet}[/]", 1))

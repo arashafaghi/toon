@@ -131,6 +131,14 @@ are re-exported lazily (so `import toon.api` never imports Textual):
   repaints only when the frame changes.
 - **`FlowLane`** — a labelled row (name + source task + `FlowTrack` + sink task)
   that delegates control to its track and posts `FlowLane.Finished`.
+- **`render_edge(phase, length, *, orientation, direction, ...) -> str`** — pure
+  helper returning a wire frame with a travelling glow (a single line, or one
+  line per row when vertical).
+- **`FlowEdge`** — a `Static` drawing a dashed **wire** with a bright **pulse**
+  travelling along it, one-way and repeating (like a packet on a cable). Options:
+  `length`, `orientation` (`"horizontal"`/`"vertical"`), `direction`, `duration`,
+  `traversals` (`None` loops forever), and the `wire`/`packet`/`trail` glyphs.
+  It owns `start`/`pause`/`resume`/`restart`, `is_done`, and `on_finished`.
 
 ### HTTP client (`toon.api.http`)
 

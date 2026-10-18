@@ -11,7 +11,7 @@ from textual.app import App, ComposeResult
 from textual.pilot import Pilot
 from textual.widget import Widget
 
-from toon.api.widgets import FlowLane, FlowTrack, render_track
+from toon.api.widgets import FlowEdge, FlowLane, FlowTrack, render_edge, render_track
 
 # --------------------------------------------------------------------------- #
 # render_track: pure rendering
@@ -162,3 +162,108 @@ async def test_lane_posts_finished_when_complete() -> None:
         assert app.finished == 1
         assert lane.is_done is True
         assert lane.has_class("done")
+
+
+# --------------------------------------------------------------------------- #
+# render_edge: pure rendering
+# --------------------------------------------------------------------------- #
+
+
+@pytest.mark.parametrize(
+    ("phase", "expected"),
+    [
+        (0.0, "●┄┄┄┄"),
+        (0.5, "┄┄●┄┄"),
+        (1.0, "┄┄┄┄●"),
+    ],
+)
+def test_render_edge_packet_travels_along_the_wire(phase: float, expected: str) -> None:
+    assert render_edge(phase, 5, trail_length=0) == expected
+
+
+def test_render_edge_trail_follows_behind_the_packet() -> None:
+    # moving right: the trail is to the left of the packet
+    assert render_edge(0.5, 5, direction=1, packet="P", trail="·", trail_length=1) == "┄·P┄┄"
+    # moving left: the trail is to the right
+    assert render_edge(0.5, 5, direction=-1, packet="P", trail="·", trail_length=1) == "┄┄P·┄"
+
+
+def test_render_edge_vertical_is_multiline() -> None:
+    rendered = render_edge(0.0, 4, orientation="vertical", wire="┆", trail_length=0)
+    assert rendered.split("\n") == ["●", "┆", "┆", "┆"]
+
+
+# --------------------------------------------------------------------------- #
+# FlowEdge behavior under App.run_test
+# --------------------------------------------------------------------------- #
+
+
+async def test_edge_one_way_loops_and_finishes() -> None:
+    edge = FlowEdge(length=6, duration=0.02, traversals=2)
+    app = _WidgetApp(edge)
+
+    async with app.run_test(size=(40, 8)) as pilot:
+        await _wait_until(pilot, lambda: edge.is_done)
+
+        assert edge.phase == pytest.approx(1.0)
+        assert edge.has_class("done")
+
+
+async def test_edge_calls_on_finished() -> None:
+    edge = FlowEdge(length=6, duration=0.02, traversals=1)
+    finished: list[Any] = []
+    edge.on_finished = lambda: finished.append("done")
+
+    async with _WidgetApp(edge).run_test(size=(40, 8)) as pilot:
+        await _wait_until(pilot, lambda: edge.is_done)
+
+        assert finished == ["done"]
+
+
+async def test_edge_loops_forever_by_default() -> None:
+    edge = FlowEdge(length=6, duration=0.05)  # traversals=None
+
+    async with _WidgetApp(edge).run_test(size=(40, 8)) as pilot:
+        await pilot.pause(0.3)
+        assert edge.is_done is False
+        assert edge.phase >= 0.0
+        await edge.pause()
+
+
+async def test_edge_pause_freezes_and_resume_continues() -> None:
+    edge = FlowEdge(length=20, duration=0.8)
+
+    async with _WidgetApp(edge).run_test(size=(40, 8)) as pilot:
+        await pilot.pause(0.1)
+        await edge.pause()
+        frozen = edge.phase
+        assert 0.0 < frozen < 1.0
+
+        await pilot.pause(0.15)
+        assert edge.phase == frozen
+
+        edge.resume()
+        await pilot.pause(0.15)
+        assert edge.phase > frozen
+        await edge.pause()
+
+
+async def test_edge_restart_returns_to_the_start() -> None:
+    edge = FlowEdge(length=20, duration=0.8)
+
+    async with _WidgetApp(edge).run_test(size=(40, 8)) as pilot:
+        await pilot.pause(0.1)
+        assert edge.phase > 0.0
+
+        await edge.restart()
+
+        assert edge.phase == 0.0
+        await edge.pause()
+
+
+async def test_edge_vertical_renders_one_line_per_row() -> None:
+    edge = FlowEdge(length=5, orientation="vertical", duration=5.0, trail_length=0)
+
+    async with _WidgetApp(edge).run_test(size=(20, 12)):
+        assert len(str(edge.render()).split("\n")) == 5
+        await edge.pause()
