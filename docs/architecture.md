@@ -96,6 +96,22 @@ def register_widget(
 
 Duplicate or invalid names raise `RegistrationError`.
 
+### Reusable UI widgets (`toon.api.widgets`)
+
+Plugins that need animated UI can reuse the host's flow widgets instead of
+re-implementing the animation machinery. They live in `toon/api/widgets.py` and
+are re-exported lazily (so `import toon.api` never imports Textual):
+
+- **`render_track(phase, direction, length, *, orientation, style) -> str`** —
+  pure helper returning a track frame (arrow / comet; horizontal / vertical).
+- **`FlowTrack`** — a `Static` that animates a marker. Options: `length`,
+  `orientation` (`"horizontal"`/`"vertical"`), `style` (`"arrow"`/`"comet"`),
+  `mode` (`"ping-pong"`/`"one-way"`), `duration`, `traversals`. It owns
+  `start`/`pause`/`resume`/`restart`, exposes `is_done`, calls `on_finished`, and
+  repaints only when the frame changes.
+- **`FlowLane`** — a labelled row (name + source task + `FlowTrack` + sink task)
+  that delegates control to its track and posts `FlowLane.Finished`.
+
 ## 6. Command execution conventions
 
 - Tokenization uses **`shlex.split`**. No shell expansion, pipes, or chaining.
