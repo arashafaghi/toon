@@ -39,7 +39,7 @@ def make_log_demo_widget() -> LogDemoWidget:
 
 def show_log_demo(ctx: CommandContext) -> str:
     """Mount the logging demo widget in the host content area."""
-    ctx.host.show_widget(WIDGET_NAME)
+    ctx.host.open_view(WIDGET_NAME)
     return "Opened the log demo widget. Press the button to emit logs."
 
 
@@ -49,5 +49,6 @@ def register(registry: ExtensionRegistry) -> None:
         WIDGET_NAME,
         make_log_demo_widget,
         description="Single button that logs four levels.",
+        title="Log demo",
     )
     registry.register_command(Command("log_demo", show_log_demo, "Open the logging demo widget."))

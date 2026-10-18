@@ -126,7 +126,7 @@ def make_arrow_demo() -> ArrowDemoWidget:
 
 def show_arrow_demo(ctx: CommandContext) -> str:
     """Mount the arrow demo widget in the host content area."""
-    ctx.host.show_widget(WIDGET_NAME)
+    ctx.host.open_view(WIDGET_NAME)
     return "Opened the arrow demo: a plain moving arrow. Pause, resume, or restart."
 
 
@@ -136,6 +136,7 @@ def register(registry: ExtensionRegistry) -> None:
         WIDGET_NAME,
         make_arrow_demo,
         description="Plain smooth moving arrow between two tasks.",
+        title="Arrow demo",
     )
     registry.register_command(
         Command("arrow_demo", show_arrow_demo, "Animate a plain arrow between two tasks.")

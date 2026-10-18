@@ -1,36 +1,98 @@
-"""Host-owned content area where widget contributions are mounted.
+"""Host-owned content area: a tabbed host for widget contributions.
 
-The base screen keeps a persistent content pane above the REPL. Widget
-contributions are factories returning a *fresh* :class:`~textual.widget.Widget`
-instance on every call; the host removes the previously mounted contribution
-and mounts the new one.
-
-:meth:`ContentArea.set_widget` is invoked from
-:meth:`toon.api.ViewHost.show_widget`, which is synchronous. Textual's
-``remove_children`` and ``mount`` schedule their work on the running event loop
-and return awaitables, so we deliberately do not await them and never create a
-second event loop.
+Every widget a plugin opens via ``ViewHost.open_view`` gets its own tab here.
+The host holds no per-plugin knowledge: it mounts a fresh widget per view,
+**activates** a view that is already open instead of duplicating it, and
+**destroys** the widget when the view is closed. Screens are separate (pushed
+onto the screen stack); this area is the persistent pane above the REPL.
 """
 
 from __future__ import annotations
 
-from textual.containers import VerticalScroll
+from textual.app import ComposeResult
+from textual.containers import Vertical
 from textual.widget import Widget
-from textual.widgets import Static
+from textual.widgets import Static, TabbedContent, TabPane
+
+_EMPTY_STATE = "No view open. Run a command that opens a view."
 
 
-class ContentArea(VerticalScroll):
-    """Host-owned pane on the base screen where widget contributions mount."""
+class ContentArea(Vertical):
+    """Tabbed host for widget contributions mounted above the REPL."""
 
-    def set_widget(self, widget: Widget) -> None:
-        """Replace the current content with the freshly created ``widget``."""
-        self.clear_content()
-        self.mount(widget)
+    DEFAULT_CSS = """
+    ContentArea TabbedContent {
+        height: 1fr;
+    }
+    ContentArea #view-empty {
+        height: 1fr;
+        content-align: center middle;
+        color: #8b949e;
+    }
+    """
 
-    def clear_content(self) -> None:
-        """Remove every child currently mounted in the content area."""
-        self.remove_children()
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        #: Open views, mapping the registration name to the tab's pane id.
+        self._open: dict[str, str] = {}
 
-    def show_message(self, text: str) -> None:
-        """Display a simple placeholder or error message."""
-        self.set_widget(Static(text))
+    def compose(self) -> ComposeResult:
+        """A tab container plus an empty-state message."""
+        yield TabbedContent(id="view-tabs")
+        yield Static(_EMPTY_STATE, id="view-empty")
+
+    def on_mount(self) -> None:
+        """Show the empty state (no views are open yet)."""
+        self._sync_empty()
+
+    # --- public API (used by the host) -------------------------------------
+
+    def open(self, name: str, title: str, widget: Widget) -> None:
+        """Open the view ``name`` in a new tab, or activate it if already open."""
+        if name in self._open:
+            self._tabs().active = self._open[name]
+            return
+        pane_id = f"view-{name}"
+        self._tabs().add_pane(TabPane(title, widget, id=pane_id))
+        self._open[name] = pane_id
+        self._tabs().active = pane_id
+        self._sync_empty()
+
+    def close(self, name: str) -> None:
+        """Close and destroy the view ``name`` if it is open."""
+        pane_id = self._open.pop(name, None)
+        if pane_id is not None:
+            self._tabs().remove_pane(pane_id)
+        self._sync_empty()
+
+    def close_all(self) -> None:
+        """Close and destroy every open view."""
+        for pane_id in list(self._open.values()):
+            self._tabs().remove_pane(pane_id)
+        self._open.clear()
+        self._sync_empty()
+
+    def has(self, name: str) -> bool:
+        """Whether the view ``name`` is currently open."""
+        return name in self._open
+
+    @property
+    def active_name(self) -> str | None:
+        """The name of the active view, or ``None`` when nothing is open."""
+        active = self._tabs().active
+        for name, pane_id in self._open.items():
+            if pane_id == active:
+                return name
+        return None
+
+    # --- internals ---------------------------------------------------------
+
+    def _tabs(self) -> TabbedContent:
+        return self.query_one(TabbedContent)
+
+    def _sync_empty(self) -> None:
+        tabs = self._tabs()
+        empty = self.query_one("#view-empty", Static)
+        has_views = bool(self._open)
+        tabs.display = has_views
+        empty.display = not has_views

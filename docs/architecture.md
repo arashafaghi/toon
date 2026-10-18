@@ -29,7 +29,7 @@ src/toon/runtime/registry.py     # command/UI registry            (M1/M2)
 src/toon/runtime/dispatcher.py   # parse + dispatch commands       (M1/M2)
 src/toon/runtime/plugin_loader.py# discover + load plugins          (M1/M2)
 src/toon/ui/repl.py          # interactive REPL                      (M1/M3)
-src/toon/ui/content.py       # host content area / view manager      (M1/M3)
+src/toon/ui/content.py       # tabbed view host (content area)
 plugins/<name>/plugin.py     # one directory per plugin
 tests/                       # automated tests                       (M1+)
 docs/architecture.md         # this document
@@ -62,11 +62,13 @@ Everything below is defined in `src/toon/api/extension.py` and re-exported from
 - **`WidgetFactory = Callable[[], Widget]`** — returns a fresh Textual widget.
 - **`ViewHost`** (runtime-checkable `Protocol`) — host navigation injected into
   handlers:
+  - `open_view(name: str) -> None` — open a widget contribution as a **tab**,
+    or activate it if it is already open
+  - `close_view(name: str) -> None` — close/destroy an open view
   - `open_screen(name: str) -> None`
-  - `show_widget(name: str) -> None`
   - `clear_output() -> None` (used by the built-in `clear` command)
-  - `reset_views() -> None` (used by the built-in `reset` command; pops plugin
-    screens and unmounts widget contributions)
+  - `reset_views() -> None` (used by the built-in `reset` command; closes every
+    view and screen)
 - **`CommandContext`** (frozen, slotted dataclass):
   - `args: tuple[str, ...]`
   - `host: ViewHost`
@@ -90,11 +92,17 @@ def register_screen(
     self, name: str, factory: ScreenFactory, *, description: str = ""
 ) -> None: ...
 def register_widget(
-    self, name: str, factory: WidgetFactory, *, description: str = ""
+    self,
+    name: str,
+    factory: WidgetFactory,
+    *,
+    description: str = "",
+    title: str | None = None,
 ) -> None: ...
 ```
 
-Duplicate or invalid names raise `RegistrationError`.
+`title` is the label shown for the view's tab when it is opened; it defaults to
+`name`. Duplicate or invalid names raise `RegistrationError`.
 
 ### Reusable UI widgets (`toon.api.widgets`)
 
@@ -132,13 +140,16 @@ are re-exported lazily (so `import toon.api` never imports Textual):
   Factories are called on demand and **never return an already-mounted object**.
 - The **host owns the `App`, the layout, and the REPL lifetime**.
 - Plugin navigation goes through `CommandContext.host`
-  (`open_screen` / `show_widget`) — this is the **only navigation mechanism**;
-  do not add a second one.
-- Layout/navigation arrangement: the base screen holds a **persistent content
-  area above the REPL**, so widget contributions mount into the content area
-  while the REPL stays usable. Screen contributions are **pushed onto the
-  Textual screen stack** and **`Escape` pops back** to the REPL. The REPL lives
-  on the base screen and is **never destroyed**.
+  (`open_screen` / `open_view` / `close_view`) — this is the **only navigation
+  mechanism**; do not add a second one.
+- Layout/navigation arrangement: the base screen holds a **persistent, tabbed
+  content area above the REPL**. `open_view(name)` shows a widget contribution in
+  its own **tab** — activating it if already open, with the tab label taken from
+  the registration `title` — so several views can be open at once while the REPL
+  stays usable. `close_view(name)` (or the host `ctrl+w` binding) **destroys** the
+  view's widget; `reset_views()` closes them all. Screen contributions are
+  **pushed onto the Textual screen stack** and **`Escape` pops back** to the REPL.
+  The REPL lives on the base screen and is **never destroyed**.
 - The base screen is framed by two **host-owned, plugin-free** bars: a header
   (`toon/ui/header.py`) with the title and a live clock, and a footer
   (`toon/ui/footer.py`) listing every visible key binding plus the
@@ -154,15 +165,17 @@ second navigation path, and the host never special-cases a plugin name.
 ```python
 # plugins/ui_demo/plugin.py (reference UI extension, M3)
 def register(registry: ExtensionRegistry) -> None:
-    registry.register_widget("demo_widget", make_demo_widget, description="...")
+    registry.register_widget(
+        "demo_widget", make_demo_widget, description="...", title="UI demo"
+    )
     registry.register_screen("demo_screen", make_demo_screen, description="...")
     registry.register_command(Command("demo_widget", demo_widget, "Show the widget."))
     registry.register_command(Command("demo_screen", demo_screen, "Open the screen."))
 
 
 def demo_widget(ctx: CommandContext) -> str:
-    ctx.host.show_widget("demo_widget")   # -> mounted in the content area
-    return "Showing the 'demo_widget' widget in the content area."
+    ctx.host.open_view("demo_widget")   # -> opened in its own tab
+    return "Opened the 'demo_widget' view in a tab."
 
 
 def demo_screen(ctx: CommandContext) -> str:
@@ -170,8 +183,9 @@ def demo_screen(ctx: CommandContext) -> str:
     return "Opened the 'demo_screen' view. Press Escape to return to the REPL."
 ```
 
-- `show_widget(name)` calls the registered factory for a **fresh** widget and
-  mounts it in the host content area (replacing any current content).
+- `open_view(name)` calls the registered factory for a **fresh** widget and opens
+  it in a new **tab** (or activates it if already open). `close_view(name)`
+  destroys an open view; the host binds `ctrl+w` to close the active tab.
 - `open_screen(name)` calls the registered factory for a **fresh** screen and
   pushes it; `Escape` (host binding) pops it, returning to the REPL.
 - An unknown `name` surfaces as a normal `CommandResult` error, not a crash.

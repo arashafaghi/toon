@@ -54,19 +54,27 @@ class ViewHost(Protocol):
     into the application object directly.
     """
 
+    def open_view(self, name: str) -> None:
+        """Open the registered widget ``name`` in the host content area.
+
+        Each open view is shown in its own tab. If a view with that name is
+        already open it is **activated** rather than opened twice; otherwise a
+        fresh instance is mounted in a new tab.
+        """
+
+    def close_view(self, name: str) -> None:
+        """Close the open view ``name``, if any, destroying its widget."""
+
     def open_screen(self, name: str) -> None:
         """Push the registered screen ``name`` onto the screen stack."""
-
-    def show_widget(self, name: str) -> None:
-        """Mount the registered widget ``name`` in the host content area."""
 
     def clear_output(self) -> None:
         """Clear the REPL output pane (used by the built-in ``clear`` command)."""
 
     def reset_views(self) -> None:
-        """Unload every UI contribution (used by the built-in ``reset`` command).
+        """Close every open view and screen (used by the built-in ``reset`` command).
 
-        Returns to the base screen and unmounts any widget contributions from
+        Returns to the base screen and unmounts all widget contributions from
         the host content area, leaving the host in a clean starting state.
         """
 
@@ -121,5 +129,16 @@ class ExtensionRegistry(Protocol):
     def register_screen(self, name: str, factory: ScreenFactory, *, description: str = "") -> None:
         """Register a screen factory; raise ``RegistrationError`` on a duplicate name."""
 
-    def register_widget(self, name: str, factory: WidgetFactory, *, description: str = "") -> None:
-        """Register a widget factory; raise ``RegistrationError`` on a duplicate name."""
+    def register_widget(
+        self,
+        name: str,
+        factory: WidgetFactory,
+        *,
+        description: str = "",
+        title: str | None = None,
+    ) -> None:
+        """Register a widget factory; raise ``RegistrationError`` on a duplicate name.
+
+        ``title`` is the label shown for the view's tab when it is opened; it
+        defaults to ``name``.
+        """

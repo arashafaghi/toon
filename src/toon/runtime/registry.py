@@ -49,10 +49,11 @@ class CommandInfo:
 
 @dataclass(frozen=True, slots=True)
 class ViewInfo:
-    """A screen or widget's name and description, for listings."""
+    """A screen or widget's name, description, and tab title."""
 
     name: str
     description: str
+    title: str = ""
 
 
 def _checked_name(kind: str, name: str) -> None:
@@ -76,7 +77,7 @@ class Registry(ExtensionRegistry):
     def __init__(self) -> None:
         self._commands: dict[str, Command] = {}
         self._screens: dict[str, tuple[ScreenFactory, str]] = {}
-        self._widgets: dict[str, tuple[WidgetFactory, str]] = {}
+        self._widgets: dict[str, tuple[WidgetFactory, str, str]] = {}
 
     # --- ExtensionRegistry implementation ----------------------------------
 
@@ -94,12 +95,22 @@ class Registry(ExtensionRegistry):
             raise RegistrationError(f"Screen '{name}' is already registered.")
         self._screens[name] = (factory, description)
 
-    def register_widget(self, name: str, factory: WidgetFactory, *, description: str = "") -> None:
-        """Register a widget factory under ``name``; raise on a duplicate."""
+    def register_widget(
+        self,
+        name: str,
+        factory: WidgetFactory,
+        *,
+        description: str = "",
+        title: str | None = None,
+    ) -> None:
+        """Register a widget factory under ``name``; raise on a duplicate.
+
+        ``title`` is the label shown for the view's tab; it defaults to ``name``.
+        """
         _checked_name("Widget", name)
         if name in self._widgets:
             raise RegistrationError(f"Widget '{name}' is already registered.")
-        self._widgets[name] = (factory, description)
+        self._widgets[name] = (factory, description, title or name)
 
     # --- Queries -----------------------------------------------------------
 
@@ -122,15 +133,15 @@ class Registry(ExtensionRegistry):
     def screen_infos(self) -> tuple[ViewInfo, ...]:
         """Name/description pairs for every registered screen."""
         return tuple(
-            ViewInfo(name=name, description=description)
+            ViewInfo(name=name, description=description, title=name)
             for name, (_, description) in self._screens.items()
         )
 
     def widget_infos(self) -> tuple[ViewInfo, ...]:
-        """Name/description pairs for every registered widget."""
+        """Name/description/title for every registered widget."""
         return tuple(
-            ViewInfo(name=name, description=description)
-            for name, (_, description) in self._widgets.items()
+            ViewInfo(name=name, description=description, title=title)
+            for name, (_, description, title) in self._widgets.items()
         )
 
     def has_screen(self, name: str) -> bool:
@@ -151,10 +162,14 @@ class Registry(ExtensionRegistry):
             raise KeyError(f"No screen registered under '{name}'.") from None
         return factory()
 
-    def create_widget(self, name: str) -> Widget:
-        """Return a fresh widget from the factory registered under ``name``."""
+    def create_view(self, name: str) -> tuple[Widget, str]:
+        """Return a fresh widget and its tab title for the view ``name``."""
         try:
-            factory, _ = self._widgets[name]
+            factory, _, title = self._widgets[name]
         except KeyError:
             raise KeyError(f"No widget registered under '{name}'.") from None
-        return factory()
+        return factory(), title
+
+    def create_widget(self, name: str) -> Widget:
+        """Return a fresh widget from the factory registered under ``name``."""
+        return self.create_view(name)[0]

@@ -65,7 +65,7 @@ def make_demo_screen() -> DemoScreen:
 
 def demo_widget(ctx: CommandContext) -> str:
     """Show the ``demo_widget`` contribution in the host content area."""
-    ctx.host.show_widget(WIDGET_NAME)
+    ctx.host.open_view(WIDGET_NAME)
     return f"Showing the '{WIDGET_NAME}' widget in the content area."
 
 
@@ -81,6 +81,7 @@ def register(registry: ExtensionRegistry) -> None:
         WIDGET_NAME,
         make_demo_widget,
         description="Example widget shown in the host content area.",
+        title="UI demo",
     )
     registry.register_screen(
         SCREEN_NAME,

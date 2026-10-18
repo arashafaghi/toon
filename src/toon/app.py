@@ -31,7 +31,6 @@ from toon.ui.palette import PaletteSystemCommands, build_commands
 from toon.ui.repl import Repl
 
 _PLUGINS_ENV = "TOON_PLUGINS_DIR"
-_EMPTY_STATE_MESSAGE = "No active view. Run a command that opens a widget or a screen."
 
 
 def _plugins_dir() -> Path:
@@ -52,6 +51,7 @@ class ToonApp(PaletteSystemCommands, App[None]):
     # command-palette hint is added by the footer as well.
     BINDINGS = [
         Binding("ctrl+q", "quit", "Quit", show=True),
+        Binding("ctrl+w", "close_view", "Close view", show=True, priority=True),
         Binding("escape", "pop_view", "Back", show=False),
     ]
 
@@ -87,7 +87,6 @@ class ToonApp(PaletteSystemCommands, App[None]):
             repl.write_output(f"[red]Plugin '{failure.name}' failed to load: {failure.error}[/red]")
         if not loaded and not self.load_report.failures:
             repl.write_output("No plugins found. Type 'help' for available commands.")
-        self.query_one(ContentArea).show_message(_EMPTY_STATE_MESSAGE)
 
     # --- ViewHost implementation -------------------------------------------
 
@@ -95,19 +94,24 @@ class ToonApp(PaletteSystemCommands, App[None]):
         """Push the registered screen ``name`` onto the screen stack."""
         self.push_screen(self.registry.create_screen(name))
 
-    def show_widget(self, name: str) -> None:
-        """Mount a fresh instance of the registered widget ``name``."""
-        self.query_one(ContentArea).set_widget(self.registry.create_widget(name))
+    def open_view(self, name: str) -> None:
+        """Open (or activate) the registered view ``name`` as a tab."""
+        widget, title = self.registry.create_view(name)
+        self.query_one(ContentArea).open(name, title, widget)
+
+    def close_view(self, name: str) -> None:
+        """Close and destroy the open view ``name``, if any."""
+        self.query_one(ContentArea).close(name)
 
     def clear_output(self) -> None:
         """Clear the REPL output pane."""
         self.query_one(Repl).clear_output()
 
     def reset_views(self) -> None:
-        """Unload every UI contribution and return to a clean base screen."""
+        """Close every open view/screen and return to a clean base screen."""
         while len(self.screen_stack) > 1:
             self.pop_screen()
-        self.query_one(ContentArea).show_message(_EMPTY_STATE_MESSAGE)
+        self.query_one(ContentArea).close_all()
 
     # --- Command palette ---------------------------------------------------
 
@@ -121,6 +125,13 @@ class ToonApp(PaletteSystemCommands, App[None]):
         """Return from a pushed screen to the REPL (no-op on the base screen)."""
         if len(self.screen_stack) > 1:
             self.pop_screen()
+
+    def action_close_view(self) -> None:
+        """Close the active content-area view tab, if any."""
+        content = self.query_one(ContentArea)
+        name = content.active_name
+        if name is not None:
+            content.close(name)
 
 
 def main() -> None:

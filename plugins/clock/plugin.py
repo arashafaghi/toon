@@ -83,7 +83,7 @@ def make_clock_screen() -> ClockScreen:
 
 def show_clock(ctx: CommandContext) -> str:
     """Mount the clock widget in the host content panel."""
-    ctx.host.show_widget(WIDGET_NAME)
+    ctx.host.open_view(WIDGET_NAME)
     return "Clock mounted in the content panel."
 
 
@@ -99,6 +99,7 @@ def register(registry: ExtensionRegistry) -> None:
         WIDGET_NAME,
         make_clock_widget,
         description="A live clock mounted in the content panel.",
+        title="Clock",
     )
     registry.register_screen(
         SCREEN_NAME,
