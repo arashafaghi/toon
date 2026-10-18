@@ -43,7 +43,7 @@ async def test_plugin_load_failure_is_logged_and_reported(
     plugin_dir.mkdir()
     (plugin_dir / "plugin.py").write_text("raise RuntimeError('nope')\n")
 
-    app = ToonApp(plugins_dir=tmp_path)
+    app = ToonApp(plugins_dir=tmp_path, state_path=tmp_path / "state.json")
 
     async with app.run_test(size=(100, 40)) as pilot:
         await pilot.pause()

@@ -20,8 +20,8 @@ from toon.ui.repl import Repl
 
 @pytest.fixture
 def app(tmp_path: Path) -> ToonApp:
-    """Return a ``ToonApp`` whose plugin directory is an empty temp dir."""
-    return ToonApp(plugins_dir=tmp_path)
+    """Return a ``ToonApp`` isolated to a temp plugins dir and state file."""
+    return ToonApp(plugins_dir=tmp_path, state_path=tmp_path / "state.json")
 
 
 @pytest.fixture

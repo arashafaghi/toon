@@ -84,6 +84,11 @@ class ContentArea(Vertical):
         return frozenset(self._open)
 
     @property
+    def view_names(self) -> tuple[str, ...]:
+        """Open view names, in the order they were opened."""
+        return tuple(self._open)
+
+    @property
     def active_name(self) -> str | None:
         """The name of the active view, or ``None`` when nothing is open."""
         active = self._tabs().active

@@ -20,10 +20,12 @@ from typing import cast
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 
+from toon.api import logger
 from toon.runtime.builtins import register_builtins
 from toon.runtime.dispatcher import Dispatcher
 from toon.runtime.plugin_loader import LoadReport, load_plugins
 from toon.runtime.registry import Registry
+from toon.runtime.state import AppState, StateStore
 from toon.ui.content import ContentArea
 from toon.ui.footer import AppFooter
 from toon.ui.header import AppHeader
@@ -59,7 +61,12 @@ class ToonApp(PaletteSystemCommands, App[None]):
     # Command palette contents live in toon.ui.palette.
     COMMANDS = cast("set[CommandProvider]", build_commands())
 
-    def __init__(self, *, plugins_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        plugins_dir: Path | None = None,
+        state_path: Path | None = None,
+    ) -> None:
         super().__init__()
         # Route Loguru into the REPL before anything (including plugins) logs.
         self.log_sink = install_logging(self)
@@ -69,11 +76,20 @@ class ToonApp(PaletteSystemCommands, App[None]):
         register_builtins(self.registry, plugins=lambda: self.load_report.summaries())
         self.load_report = load_plugins(plugins_dir or _plugins_dir(), self.registry)
         self.dispatcher = Dispatcher(self.registry)
+        # Remember/reload the open views; creates an empty file if absent.
+        self.state_store = StateStore(state_path)
+        self.state: AppState = self.state_store.load()
 
     def compose(self) -> ComposeResult:
         yield AppHeader(id="header")
         yield ContentArea(id="content")
-        yield Repl(self.dispatcher, self, id="repl")
+        yield Repl(
+            self.dispatcher,
+            self,
+            history=self.state.history,
+            on_history_changed=self._save_history,
+            id="repl",
+        )
         yield AppFooter(id="footer")
 
     def on_mount(self) -> None:
@@ -90,6 +106,8 @@ class ToonApp(PaletteSystemCommands, App[None]):
             repl.write_output("No plugins found. Type 'help' for available commands.")
         # Bars start with only session-wide items (no views open yet).
         self._sync_bars()
+        # Reopen whatever was open last time (empty state -> nothing).
+        self._restore_state()
 
     # --- ViewHost implementation -------------------------------------------
 
@@ -101,12 +119,12 @@ class ToonApp(PaletteSystemCommands, App[None]):
         """Open (or activate) the registered view ``name`` as a tab."""
         widget, title = self.registry.create_view(name)
         self.query_one(ContentArea).open(name, title, widget)
-        self._sync_bars()
+        self._views_changed()
 
     def close_view(self, name: str) -> None:
         """Close and destroy the open view ``name``, if any."""
         self.query_one(ContentArea).close(name)
-        self._sync_bars()
+        self._views_changed()
 
     def open_view_names(self) -> frozenset[str]:
         """Names of the currently-open content-area views."""
@@ -118,6 +136,31 @@ class ToonApp(PaletteSystemCommands, App[None]):
         self.query_one(AppHeader).sync_items(names)
         self.query_one(AppFooter).sync_items(names)
 
+    def _views_changed(self) -> None:
+        """React to the set of open views changing (refresh bars + save)."""
+        self._sync_bars()
+        self._persist_state()
+
+    def _restore_state(self) -> None:
+        """Reopen the views remembered from the last session."""
+        for name in self.state.open_views:
+            if not self.registry.has_widget(name):
+                continue
+            try:
+                self.open_view(name)
+            except Exception as exc:  # a broken view must not block startup
+                logger.warning("Could not restore view {!r}: {}", name, exc)
+
+    def _persist_state(self) -> None:
+        """Save the currently-open views to the state file."""
+        self.state = self.state.with_open_views(self.query_one(ContentArea).view_names)
+        self.state_store.save(self.state)
+
+    def _save_history(self, history: list[str]) -> None:
+        """Save the REPL command history to the state file."""
+        self.state = self.state.with_history(tuple(history))
+        self.state_store.save(self.state)
+
     def clear_output(self) -> None:
         """Clear the REPL output pane."""
         self.query_one(Repl).clear_output()
@@ -127,7 +170,7 @@ class ToonApp(PaletteSystemCommands, App[None]):
         while len(self.screen_stack) > 1:
             self.pop_screen()
         self.query_one(ContentArea).close_all()
-        self._sync_bars()
+        self._views_changed()
 
     # --- Command palette ---------------------------------------------------
 

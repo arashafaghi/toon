@@ -271,3 +271,22 @@ Details:
   (`call_from_thread`), so sinks are safe to use from workers.
 - The sink never raises into the caller; a failing write is swallowed.
 - Level and format live in `toon/ui/logging.py` (`LOG_LEVEL`, `LOG_FORMAT`).
+
+## 11. Session state ("memory")
+
+The host remembers which views were open and reopens them on the next start.
+State lives in a small JSON file (`toon/runtime/state.py`):
+
+- Location: `$XDG_CONFIG_HOME/toon/state.json` (often
+  `~/.config/toon/state.json`), overridable with the `TOON_STATE_FILE`
+  environment variable or the `ToonApp(state_path=...)` argument.
+- The file is **optional**: if it is missing it is created empty, and an
+  unreadable/corrupt file degrades to an empty state (never blocks startup).
+- The app writes the currently-open view names (in open order) whenever the set
+  changes — on `open_view`, `close_view`, and `reset_views` — and restores them
+  after mount, skipping names that are no longer registered.
+- The same file also stores `history`: the last 20 REPL commands (oldest first),
+  written on each submit. In the REPL, **Up/Down** walk that history with
+  **prefix matching** (like bash's `history-search-backward` /
+  `history-search-forward`): typing a prefix and pressing Up cycles only through
+  past commands starting with it; Down returns to the draft.
