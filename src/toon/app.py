@@ -87,6 +87,8 @@ class ToonApp(PaletteSystemCommands, App[None]):
             repl.write_output(f"[red]Plugin '{failure.name}' failed to load: {failure.error}[/red]")
         if not loaded and not self.load_report.failures:
             repl.write_output("No plugins found. Type 'help' for available commands.")
+        # Bars start with only session-wide items (no views open yet).
+        self._sync_bars()
 
     # --- ViewHost implementation -------------------------------------------
 
@@ -98,10 +100,22 @@ class ToonApp(PaletteSystemCommands, App[None]):
         """Open (or activate) the registered view ``name`` as a tab."""
         widget, title = self.registry.create_view(name)
         self.query_one(ContentArea).open(name, title, widget)
+        self._sync_bars()
 
     def close_view(self, name: str) -> None:
         """Close and destroy the open view ``name``, if any."""
         self.query_one(ContentArea).close(name)
+        self._sync_bars()
+
+    def open_view_names(self) -> frozenset[str]:
+        """Names of the currently-open content-area views."""
+        return self.query_one(ContentArea).open_names
+
+    def _sync_bars(self) -> None:
+        """Show/hide header and footer items to match the open views."""
+        names = self.open_view_names()
+        self.query_one(AppHeader).sync_items(names)
+        self.query_one(AppFooter).sync_items(names)
 
     def clear_output(self) -> None:
         """Clear the REPL output pane."""
@@ -112,6 +126,7 @@ class ToonApp(PaletteSystemCommands, App[None]):
         while len(self.screen_stack) > 1:
             self.pop_screen()
         self.query_one(ContentArea).close_all()
+        self._sync_bars()
 
     # --- Command palette ---------------------------------------------------
 

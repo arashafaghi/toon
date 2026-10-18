@@ -12,7 +12,7 @@ local directories by convention is a follow-up, not part of this milestone.
 ## 2. Technology and build configuration
 
 - Python **>=3.13**, pinned in `.python-version` (`3.13`).
-- Runtime dependencies: **`textual`** and **`pydantic`**.
+- Runtime dependencies: **`textual`**, **`pydantic`**, and **`httpx`**.
 - Dev dependencies: **`pytest`**, **`pytest-asyncio`**, **`ruff`**.
 - Build backend: **`uv_build`**.
 - Console script: **`toon = toon.app:main`**.
@@ -99,7 +99,20 @@ def register_widget(
     description: str = "",
     title: str | None = None,
 ) -> None: ...
+def register_header_item(
+    self, name: str, factory: WidgetFactory, *, description: str = "",
+    order: int = 0, view: str | None = None,
+) -> None: ...
+def register_footer_item(
+    self, name: str, factory: WidgetFactory, *, description: str = "",
+    order: int = 0, view: str | None = None,
+) -> None: ...
 ```
+
+Header/footer items are widgets the host renders **in its own bars** (lower
+``order`` first); they never let a plugin touch host DOM. With ``view`` set the
+item is shown only while that view is open (so it also disappears on ``reset``);
+with ``view=None`` it lives for the whole session.
 
 `title` is the label shown for the view's tab when it is opened; it defaults to
 `name`. Duplicate or invalid names raise `RegistrationError`.
@@ -118,6 +131,30 @@ are re-exported lazily (so `import toon.api` never imports Textual):
   repaints only when the frame changes.
 - **`FlowLane`** — a labelled row (name + source task + `FlowTrack` + sink task)
   that delegates control to its track and posts `FlowLane.Finished`.
+
+### HTTP client (`toon.api.http`)
+
+Plugins call external APIs (Jenkins, Gerrit, `~/.netrc` services, ...) with an
+async, httpx-based client. It is re-exported lazily, so `import toon.api` never
+imports httpx:
+
+```python
+from toon.api import BasicAuth, HttpClient
+
+async with HttpClient("https://ci.example.com", auth=BasicAuth(user, token)) as api:
+    data = await api.get_json("/api/json")
+```
+
+- **`HttpClient(base_url, *, auth=None, headers=None, timeout=..., follow_redirects=True, raise_for_status=True, transport=None)`**
+  — an async context manager (also `aclose()`); `get/post/put/patch/delete/request`
+  return a small **`HttpResponse`** (`status_code`, `headers`, `text`, `.json()`,
+  `.ok`); `get_json`/`post_json` parse JSON. Non-2xx raises **`HttpError`** by
+  default (`raise_for_status=False` to inspect instead).
+- **Auth is a separate, pluggable class** implementing the `Auth` protocol
+  (`async def apply(request) -> None`): **`BasicAuth`** (Jenkins user+token,
+  Gerrit user+password), **`BearerAuth`**, **`HeaderAuth`** (API keys),
+  **`NetrcAuth`** (per-host credentials from `~/.netrc`), and **`NoAuth`**
+  (default). Swap one for another without touching request code.
 
 ## 6. Command execution conventions
 
@@ -150,12 +187,14 @@ are re-exported lazily (so `import toon.api` never imports Textual):
   view's widget; `reset_views()` closes them all. Screen contributions are
   **pushed onto the Textual screen stack** and **`Escape` pops back** to the REPL.
   The REPL lives on the base screen and is **never destroyed**.
-- The base screen is framed by two **host-owned, plugin-free** bars: a header
-  (`toon/ui/header.py`) with the title and a live clock, and a footer
-  (`toon/ui/footer.py`) listing every visible key binding plus the
-  command-palette hint. Add a shortcut simply by adding a `Binding(...,
-  show=True)` to `ToonApp.BINDINGS`; add extra segments/hints via
-  `AppHeader.build_segments` and `AppFooter.EXTRA_HINTS`.
+- The base screen is framed by two **host-owned** bars: a header
+  (`toon/ui/header.py`) with the title, plugin header items, and a live clock,
+  and a footer (`toon/ui/footer.py`) listing every visible key binding, the
+  command-palette hint, and plugin footer items. Add a shortcut simply by adding
+  a `Binding(..., show=True)` to `ToonApp.BINDINGS`; plugins add widgets to a bar
+  with `register_header_item` / `register_footer_item` — ordered, session-wide by
+  default or shown only while a given `view=` is open. Further host
+  segments/hints via `AppHeader.build_segments` and `AppFooter.EXTRA_HINTS`.
 
 ### Command-to-view mechanism (worked example)
 

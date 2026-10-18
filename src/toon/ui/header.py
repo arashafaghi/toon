@@ -23,20 +23,30 @@ TIME_FORMAT = "%H:%M:%S"
 CLOCK_ID = "header-clock"
 
 
+#: Widget id of the container holding plugin header items.
+ITEMS_ID = "header-items"
+
+
 class AppHeader(Horizontal):
-    """Header bar: the app title on the left, a live clock on the right."""
+    """Header bar: title, plugin items, and a live clock."""
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        self._items: dict[str, object] = {}
 
     def compose(self) -> ComposeResult:
         """Yield the header segments, left to right."""
         yield from self.build_segments()
 
     def build_segments(self) -> ComposeResult:
-        """Yield the header's segments.
+        """Yield the header's segments, left to right.
 
-        Override or extend this to add more. The first segment is typically the
-        title (it takes the remaining width); later segments sit on the right.
+        The title takes the remaining width; plugin header items live in a
+        dedicated container (so they can appear/disappear with their view);
+        the clock sits last. Override or extend this for more host segments.
         """
         yield Static(self.app.title, id="header-title")
+        yield Horizontal(id=ITEMS_ID)
         yield Static("", id=CLOCK_ID)
 
     def on_mount(self) -> None:
@@ -44,6 +54,24 @@ class AppHeader(Horizontal):
         clock = self.query_one(f"#{CLOCK_ID}", Static)
         clock.update(self._now())
         self.set_interval(1.0, lambda: clock.update(self._now()))
+
+    def sync_items(self, open_views: frozenset[str]) -> None:
+        """Show the header items whose view is open (session items always)."""
+        container = self.query_one(f"#{ITEMS_ID}", Horizontal)
+        wanted = {
+            item.name: item
+            for item in self.app.registry.header_items()
+            if item.view is None or item.view in open_views
+        }
+        for name, widget in self._items.items():
+            if name not in wanted:
+                widget.remove()
+        self._items = {name: widget for name, widget in self._items.items() if name in wanted}
+        for name, item in wanted.items():
+            if name not in self._items:
+                widget = item.factory()
+                self._items[name] = widget
+                container.mount(widget)
 
     @staticmethod
     def _now() -> str:

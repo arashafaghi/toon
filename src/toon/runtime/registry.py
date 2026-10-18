@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from textual.screen import Screen
     from textual.widget import Widget
 
-__all__ = ["CommandInfo", "Registry", "ViewInfo"]
+__all__ = ["BarItem", "CommandInfo", "Registry", "ViewInfo"]
 
 _NAME_PATTERN = r"^[A-Za-z][A-Za-z0-9_-]*$"
 
@@ -56,6 +56,19 @@ class ViewInfo:
     title: str = ""
 
 
+@dataclass(frozen=True, slots=True)
+class BarItem:
+    """A widget contribution for the header/footer bar.
+
+    ``view`` is the view it belongs to; the host shows the item only while that
+    view is open. ``view is None`` means the item is always shown.
+    """
+
+    name: str
+    factory: WidgetFactory
+    view: str | None = None
+
+
 def _checked_name(kind: str, name: str) -> None:
     """Raise :class:`RegistrationError` when ``name`` is not a valid identifier."""
     try:
@@ -78,6 +91,9 @@ class Registry(ExtensionRegistry):
         self._commands: dict[str, Command] = {}
         self._screens: dict[str, tuple[ScreenFactory, str]] = {}
         self._widgets: dict[str, tuple[WidgetFactory, str, str]] = {}
+        # Bar items: name -> (factory, description, order, view).
+        self._header_items: dict[str, tuple[WidgetFactory, str, int, str | None]] = {}
+        self._footer_items: dict[str, tuple[WidgetFactory, str, int, str | None]] = {}
 
     # --- ExtensionRegistry implementation ----------------------------------
 
@@ -112,6 +128,46 @@ class Registry(ExtensionRegistry):
             raise RegistrationError(f"Widget '{name}' is already registered.")
         self._widgets[name] = (factory, description, title or name)
 
+    def register_header_item(
+        self,
+        name: str,
+        factory: WidgetFactory,
+        *,
+        description: str = "",
+        order: int = 0,
+        view: str | None = None,
+    ) -> None:
+        """Register a widget shown in the header bar; raise on a duplicate.
+
+        Lower ``order`` values appear first (registration order breaks ties).
+        If ``view`` is set, the item is shown only while that view is open;
+        otherwise it is shown for the whole session.
+        """
+        _checked_name("Header item", name)
+        if name in self._header_items:
+            raise RegistrationError(f"Header item '{name}' is already registered.")
+        self._header_items[name] = (factory, description, order, view)
+
+    def register_footer_item(
+        self,
+        name: str,
+        factory: WidgetFactory,
+        *,
+        description: str = "",
+        order: int = 0,
+        view: str | None = None,
+    ) -> None:
+        """Register a widget shown in the footer bar; raise on a duplicate.
+
+        Lower ``order`` values appear first (registration order breaks ties).
+        If ``view`` is set, the item is shown only while that view is open;
+        otherwise it is shown for the whole session.
+        """
+        _checked_name("Footer item", name)
+        if name in self._footer_items:
+            raise RegistrationError(f"Footer item '{name}' is already registered.")
+        self._footer_items[name] = (factory, description, order, view)
+
     # --- Queries -----------------------------------------------------------
 
     @property
@@ -142,6 +198,23 @@ class Registry(ExtensionRegistry):
         return tuple(
             ViewInfo(name=name, description=description, title=title)
             for name, (_, description, title) in self._widgets.items()
+        )
+
+    def header_items(self) -> tuple[BarItem, ...]:
+        """Every header item, in display order."""
+        return self._bar_items(self._header_items)
+
+    def footer_items(self) -> tuple[BarItem, ...]:
+        """Every footer item, in display order."""
+        return self._bar_items(self._footer_items)
+
+    @staticmethod
+    def _bar_items(
+        items: dict[str, tuple[WidgetFactory, str, int, str | None]],
+    ) -> tuple[BarItem, ...]:
+        ordered = sorted(items.items(), key=lambda item: item[1][2])
+        return tuple(
+            BarItem(name, factory, view) for name, (factory, _desc, _order, view) in ordered
         )
 
     def has_screen(self, name: str) -> bool:

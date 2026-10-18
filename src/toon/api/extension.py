@@ -142,3 +142,35 @@ class ExtensionRegistry(Protocol):
         ``title`` is the label shown for the view's tab when it is opened; it
         defaults to ``name``.
         """
+
+    def register_header_item(
+        self,
+        name: str,
+        factory: WidgetFactory,
+        *,
+        description: str = "",
+        order: int = 0,
+        view: str | None = None,
+    ) -> None:
+        """Register a widget for the host header bar; raise on a duplicate name.
+
+        Lower ``order`` values appear first (registration order breaks ties).
+        If ``view`` is set, the item shows only while that view is open;
+        otherwise it shows for the whole session.
+        """
+
+    def register_footer_item(
+        self,
+        name: str,
+        factory: WidgetFactory,
+        *,
+        description: str = "",
+        order: int = 0,
+        view: str | None = None,
+    ) -> None:
+        """Register a widget for the host footer bar; raise on a duplicate name.
+
+        Lower ``order`` values appear first (registration order breaks ties).
+        If ``view`` is set, the item shows only while that view is open;
+        otherwise it shows for the whole session.
+        """

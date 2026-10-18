@@ -13,6 +13,7 @@ Plugins can also log with ``from toon.api import logger``; records are shown in
 the host's REPL output area.
 """
 
+import importlib
 from typing import TYPE_CHECKING
 
 from loguru import logger
@@ -31,10 +32,24 @@ from toon.api.extension import (
 
 if TYPE_CHECKING:
     # Re-exported lazily (see __getattr__) so importing ``toon.api`` never pulls
-    # in Textual; this import exists only for type checkers.
+    # in Textual or httpx; these imports exist only for type checkers.
+    from toon.api.http import (
+        Auth,
+        BasicAuth,
+        BearerAuth,
+        HeaderAuth,
+        HttpClient,
+        HttpError,
+        HttpResponse,
+        NetrcAuth,
+        NoAuth,
+    )
     from toon.api.widgets import FlowLane, FlowMode, FlowTrack, render_track
 
 __all__ = [
+    "Auth",
+    "BasicAuth",
+    "BearerAuth",
     "Command",
     "CommandContext",
     "CommandHandler",
@@ -43,6 +58,12 @@ __all__ = [
     "FlowLane",
     "FlowMode",
     "FlowTrack",
+    "HeaderAuth",
+    "HttpClient",
+    "HttpError",
+    "HttpResponse",
+    "NetrcAuth",
+    "NoAuth",
     "RegistrationError",
     "ScreenFactory",
     "ViewHost",
@@ -51,17 +72,32 @@ __all__ = [
     "render_track",
 ]
 
-_WIDGET_EXPORTS = frozenset({"FlowLane", "FlowMode", "FlowTrack", "render_track"})
+#: Names re-exported lazily, mapped to the module that defines them.
+_LAZY_EXPORTS: dict[str, frozenset[str]] = {
+    "toon.api.http": frozenset(
+        {
+            "Auth",
+            "BasicAuth",
+            "BearerAuth",
+            "HeaderAuth",
+            "HttpClient",
+            "HttpError",
+            "HttpResponse",
+            "NetrcAuth",
+            "NoAuth",
+        }
+    ),
+    "toon.api.widgets": frozenset({"FlowLane", "FlowMode", "FlowTrack", "render_track"}),
+}
 
 
 def __getattr__(name: str) -> object:
-    """Lazily expose the Textual-facing widgets in :mod:`toon.api.widgets`.
+    """Lazily expose the UI and HTTP helpers of the public API.
 
-    Keeping this lazy means ``import toon.api`` (used by the core runtime) does
-    not import Textual; only plugins that ask for a widget pull it in.
+    Keeping these lazy means ``import toon.api`` (used by the core runtime) does
+    not pull in Textual or httpx; only plugins that actually ask for them do.
     """
-    if name in _WIDGET_EXPORTS:
-        from toon.api import widgets
-
-        return getattr(widgets, name)
+    for module_name, names in _LAZY_EXPORTS.items():
+        if name in names:
+            return getattr(importlib.import_module(module_name), name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
