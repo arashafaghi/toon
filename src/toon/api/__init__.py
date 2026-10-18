@@ -32,14 +32,7 @@ from toon.api.extension import (
 if TYPE_CHECKING:
     # Re-exported lazily (see __getattr__) so importing ``toon.api`` never pulls
     # in Textual; this import exists only for type checkers.
-    from toon.api.widgets import (
-        FlowLane,
-        FlowMode,
-        FlowTrack,
-        Orientation,
-        TrackStyle,
-        render_track,
-    )
+    from toon.api.widgets import FlowLane, FlowMode, FlowTrack, render_track
 
 __all__ = [
     "Command",
@@ -50,19 +43,15 @@ __all__ = [
     "FlowLane",
     "FlowMode",
     "FlowTrack",
-    "Orientation",
     "RegistrationError",
     "ScreenFactory",
-    "TrackStyle",
     "ViewHost",
     "WidgetFactory",
     "logger",
     "render_track",
 ]
 
-_WIDGET_EXPORTS = frozenset(
-    {"FlowLane", "FlowMode", "FlowTrack", "Orientation", "TrackStyle", "render_track"}
-)
+_WIDGET_EXPORTS = frozenset({"FlowLane", "FlowMode", "FlowTrack", "render_track"})
 
 
 def __getattr__(name: str) -> object:

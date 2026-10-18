@@ -51,7 +51,6 @@ class ArrowDemoWidget(Vertical):
             source="Task A",
             sink="Task B",
             length=40,
-            style="arrow",
             mode="ping-pong",
             duration=TRAVEL_SECONDS,
             traversals=TRAVERSALS,

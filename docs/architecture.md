@@ -98,14 +98,13 @@ Duplicate or invalid names raise `RegistrationError`.
 
 ### Reusable UI widgets (`toon.api.widgets`)
 
-Plugins that need animated UI can reuse the host's flow widgets instead of
+Plugins that need an animated flow can reuse the host's widgets instead of
 re-implementing the animation machinery. They live in `toon/api/widgets.py` and
 are re-exported lazily (so `import toon.api` never imports Textual):
 
-- **`render_track(phase, direction, length, *, orientation, style) -> str`** —
-  pure helper returning a track frame (arrow / comet; horizontal / vertical).
-- **`FlowTrack`** — a `Static` that animates a marker. Options: `length`,
-  `orientation` (`"horizontal"`/`"vertical"`), `style` (`"arrow"`/`"comet"`),
+- **`render_track(phase, direction, length) -> str`** — pure helper returning a
+  single horizontal track frame (a `▶`/`◀` arrow among dots).
+- **`FlowTrack`** — a `Static` that animates the arrow. Options: `length`,
   `mode` (`"ping-pong"`/`"one-way"`), `duration`, `traversals`. It owns
   `start`/`pause`/`resume`/`restart`, exposes `is_done`, calls `on_finished`, and
   repaints only when the frame changes.

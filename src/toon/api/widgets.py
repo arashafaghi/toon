@@ -1,10 +1,13 @@
 """Reusable Textual widgets for plugin UI contributions.
 
 This is the UI-facing half of the public extension API. Plugins import from here
-to build animated flows without re-implementing the animation machinery::
+to build an animated flow without re-implementing the animation machinery::
 
     from toon.api import FlowLane          # lazy re-export
     from toon.api.widgets import FlowTrack # or import the module directly
+
+The track draws a single arrow that travels horizontally; the travel can be
+``"ping-pong"`` (reverse at each end) or ``"one-way"`` (loop back to the start).
 
 Importing this module pulls in Textual. ``toon.api`` itself stays Textual-free
 at runtime -- it exposes these names lazily so the core runtime never imports
@@ -22,115 +25,33 @@ from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import Static
 
-__all__ = [
-    "FlowLane",
-    "FlowMode",
-    "FlowTrack",
-    "Orientation",
-    "TrackStyle",
-    "render_track",
-]
+__all__ = ["FlowLane", "FlowMode", "FlowTrack", "render_track"]
 
-#: Axis the marker travels along.
-Orientation = Literal["horizontal", "vertical"]
-#: ``"arrow"`` is a plain marker; ``"comet"`` adds a sub-cell body and a tail.
-TrackStyle = Literal["arrow", "comet"]
-#: ``"ping-pong"`` reverses at each end; ``"one-way"`` loops to the start.
+#: ``"ping-pong"`` reverses at each end; ``"one-way"`` loops back to the start.
 FlowMode = Literal["ping-pong", "one-way"]
 
 _DOTS = "·"
-_EIGHTHS = "▏▎▍▌▋▊▉█"
-_TAIL = "▓▒░"
 
 
-def render_track(
-    phase: float,
-    direction: int,
-    length: int,
-    *,
-    orientation: Orientation = "horizontal",
-    style: TrackStyle = "arrow",
-) -> str:
-    """Render one flow-track frame as text (newline-joined when vertical).
+def render_track(phase: float, direction: int, length: int) -> str:
+    """Render one horizontal flow-track frame: a single arrow among dots.
 
     Args:
         phase: Fractional progress, ``0.0`` (start) to ``1.0`` (end).
-        direction: Positive travels "forward" (down/right), negative reverses.
-        length: Number of cells (or rows) in the track.
-        orientation: ``"horizontal"`` or ``"vertical"``.
-        style: ``"arrow"`` or ``"comet"``.
+        direction: Positive points right (``▶``), negative points left (``◀``).
+        length: Number of cells in the track.
 
     Returns:
-        The track as a string (a single line, or multiple lines when vertical).
+        The track as a single line of text.
     """
     position = min(1.0, max(0.0, phase)) * (length - 1)
     head = min(length - 1, max(0, int(position)))
-    fraction = position - head
-    forward = direction >= 0
-
-    if orientation == "vertical":
-        return _render_vertical(head, fraction, forward, length, style)
-    return _render_horizontal(head, fraction, forward, length, style)
-
-
-def _render_horizontal(
-    head: int, fraction: float, forward: bool, length: int, style: TrackStyle
-) -> str:
-    cells = [_DOTS] * length
-    cells[head] = "▶" if forward else "◀"
-    if style == "comet":
-        step = -1 if forward else 1
-        _decorate(cells, head, fraction, step, length, horizontal=True)
-    return "".join(cells)
-
-
-def _render_vertical(
-    head: int, fraction: float, forward: bool, length: int, style: TrackStyle
-) -> str:
-    cells = [_DOTS] * length
-    cells[head] = "▼" if forward else "▲"
-    if style == "comet":
-        step = 1 if forward else -1  # travel direction; the body trails behind
-        _decorate(cells, head, fraction, -step, length, horizontal=False, forward=forward)
-    return "\n".join(cells)
-
-
-def _decorate(
-    cells: list[str],
-    head: int,
-    fraction: float,
-    step: int,
-    length: int,
-    *,
-    horizontal: bool,
-    forward: bool = True,
-) -> None:
-    """Add the sub-cell body and fading tail behind the arrow in ``cells``."""
-    body = head + step
-    if 0 <= body < length:
-        size = 1.0 - fraction
-        if horizontal:
-            eighths = min(8, max(0, round(size * 8)))
-            if eighths >= 1:
-                cells[body] = _EIGHTHS[eighths - 1]
-        else:
-            cells[body] = _body_char(forward, size)
-    for offset, char in enumerate(_TAIL, start=2):
-        index = head + step * offset
-        if 0 <= index < length:
-            cells[index] = char
-
-
-def _body_char(forward: bool, size: float) -> str:
-    if size > 0.66:
-        return "█"
-    if forward:  # moving down: the body trails above (upper blocks)
-        return "▀" if size > 0.33 else "▔"
-    return "▄" if size > 0.33 else "▁"  # moving up: lower blocks
+    arrow = "▶" if direction >= 0 else "◀"
+    return _DOTS * head + arrow + _DOTS * (length - 1 - head)
 
 
 class FlowTrack(Static):
-    """A track with an animated marker that travels along it.
+    """A track with an animated arrow that travels along it.
 
     Reusable across plugins. It owns the animation state machine
     (:meth:`start`, :meth:`pause`, :meth:`resume`, :meth:`restart`), exposes
@@ -156,8 +77,6 @@ class FlowTrack(Static):
         self,
         *,
         length: int = 32,
-        orientation: Orientation = "horizontal",
-        style: TrackStyle = "arrow",
         mode: FlowMode = "ping-pong",
         duration: float = 1.4,
         traversals: int = 3,
@@ -166,8 +85,6 @@ class FlowTrack(Static):
     ) -> None:
         super().__init__("", **kwargs)
         self._length = max(2, length)
-        self._orientation = orientation
-        self._style = style
         self._mode = mode
         self._duration = duration
         self._traversals = max(1, traversals)
@@ -211,7 +128,7 @@ class FlowTrack(Static):
         self._run_animation(self._duration)
 
     async def pause(self) -> None:
-        """Freeze the marker where it is."""
+        """Freeze the arrow where it is."""
         self._is_running = False
         await self.stop_animation("phase", complete=False)
 
@@ -267,13 +184,7 @@ class FlowTrack(Static):
         await self.stop_animation("phase", complete=False)
 
     def _repaint(self) -> None:
-        text = render_track(
-            self.phase,
-            self.direction,
-            self._length,
-            orientation=self._orientation,
-            style=self._style,
-        )
+        text = render_track(self.phase, self.direction, self._length)
         if text != self._last:  # only touch the DOM when the frame changes
             self._last = text
             self.update(text)
@@ -326,8 +237,6 @@ class FlowLane(Horizontal):
         source: str | None = None,
         sink: str | None = None,
         length: int = 32,
-        orientation: Orientation = "horizontal",
-        style: TrackStyle = "arrow",
         mode: FlowMode = "ping-pong",
         duration: float = 1.4,
         traversals: int = 3,
@@ -339,8 +248,6 @@ class FlowLane(Horizontal):
         self._sink = sink
         self._track_config = {
             "length": length,
-            "orientation": orientation,
-            "style": style,
             "mode": mode,
             "duration": duration,
             "traversals": traversals,
