@@ -12,9 +12,14 @@ Adding a shortcut to the footer therefore means only one thing: add a binding to
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from textual.app import ComposeResult
 from textual.containers import Horizontal
+from textual.widget import Widget
 from textual.widgets import Footer, Static
+
+from toon.ui.host import BarHost
 
 __all__ = ["AppFooter"]
 
@@ -42,9 +47,9 @@ class AppFooter(Horizontal):
     #: Example: ``EXTRA_HINTS = ("esc back", "? help")``.
     EXTRA_HINTS: tuple[str, ...] = ()
 
-    def __init__(self, **kwargs: object) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self._items: dict[str, object] = {}
+        self._items: dict[str, Widget] = {}
 
     def compose(self) -> ComposeResult:
         """Textual's footer, optional hints, then the plugin-items container."""
@@ -58,7 +63,7 @@ class AppFooter(Horizontal):
         container = self.query_one(f"#{ITEMS_ID}", Horizontal)
         wanted = {
             item.name: item
-            for item in self.app.registry.footer_items()
+            for item in self._host().registry.footer_items()
             if item.view is None or item.view in open_views
         }
         for name, widget in self._items.items():
@@ -70,3 +75,7 @@ class AppFooter(Horizontal):
                 widget = item.factory()
                 self._items[name] = widget
                 container.mount(widget)
+
+    def _host(self) -> BarHost:
+        """The host app, viewed through the slice this bar needs."""
+        return cast("BarHost", self.app)

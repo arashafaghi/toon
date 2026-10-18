@@ -16,9 +16,9 @@ To change what appears in the palette, edit this file only.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from functools import partial
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from textual.app import SystemCommand
 from textual.command import DiscoveryHit, Hit, Hits, Provider
@@ -38,6 +38,10 @@ __all__ = [
 #: Titles of Textual's built-in system commands to omit from the palette.
 #: Set to an empty set to keep them all.
 SYSTEM_COMMANDS_TO_HIDE: frozenset[str] = frozenset({"Maximize", "Minimize"})
+
+#: Element type of Textual's ``App.COMMANDS``: a provider class, or a
+#: zero-argument factory returning one.
+CommandProvider = type[Provider] | Callable[[], type[Provider]]
 
 
 class _PaletteHost(Protocol):
@@ -92,7 +96,7 @@ class PaletteSystemCommands:
             ...
     """
 
-    def get_system_commands(self, screen: Screen) -> Iterable[SystemCommand]:
+    def get_system_commands(self, screen: Screen[Any]) -> Iterable[SystemCommand]:
         """Yield Textual's system commands minus anything in :data:`SYSTEM_COMMANDS_TO_HIDE`."""
         for command in super().get_system_commands(screen):  # type: ignore[misc]
             if command.title not in SYSTEM_COMMANDS_TO_HIDE:

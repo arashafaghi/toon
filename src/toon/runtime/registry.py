@@ -12,7 +12,7 @@ stores factories but never imports rendering code at runtime.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -227,7 +227,7 @@ class Registry(ExtensionRegistry):
 
     # --- Factory invocation ------------------------------------------------
 
-    def create_screen(self, name: str) -> Screen:
+    def create_screen(self, name: str) -> Screen[Any]:
         """Return a fresh screen from the factory registered under ``name``."""
         try:
             factory, _ = self._screens[name]

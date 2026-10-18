@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import cast
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -27,7 +28,7 @@ from toon.ui.content import ContentArea
 from toon.ui.footer import AppFooter
 from toon.ui.header import AppHeader
 from toon.ui.logging import install_logging
-from toon.ui.palette import PaletteSystemCommands, build_commands
+from toon.ui.palette import CommandProvider, PaletteSystemCommands, build_commands
 from toon.ui.repl import Repl
 
 _PLUGINS_ENV = "TOON_PLUGINS_DIR"
@@ -56,7 +57,7 @@ class ToonApp(PaletteSystemCommands, App[None]):
     ]
 
     # Command palette contents live in toon.ui.palette.
-    COMMANDS = build_commands()
+    COMMANDS = cast("set[CommandProvider]", build_commands())
 
     def __init__(self, *, plugins_dir: Path | None = None) -> None:
         super().__init__()

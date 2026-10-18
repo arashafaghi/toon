@@ -17,7 +17,7 @@ Textual.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Literal
+from typing import Any, Literal, TypedDict
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
@@ -31,6 +31,15 @@ __all__ = ["FlowLane", "FlowMode", "FlowTrack", "render_track"]
 FlowMode = Literal["ping-pong", "one-way"]
 
 _DOTS = "·"
+
+
+class _TrackConfig(TypedDict):
+    """Keyword arguments :class:`FlowLane` forwards to its :class:`FlowTrack`."""
+
+    length: int
+    mode: FlowMode
+    duration: float
+    traversals: int
 
 
 def render_track(phase: float, direction: int, length: int) -> str:
@@ -81,7 +90,7 @@ class FlowTrack(Static):
         duration: float = 1.4,
         traversals: int = 3,
         easing: str = "linear",
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         super().__init__("", **kwargs)
         self._length = max(2, length)
@@ -240,13 +249,13 @@ class FlowLane(Horizontal):
         mode: FlowMode = "ping-pong",
         duration: float = 1.4,
         traversals: int = 3,
-        **kwargs: object,
+        **kwargs: Any,
     ) -> None:
         super().__init__(**kwargs)
         self._label = label
         self._source = source
         self._sink = sink
-        self._track_config = {
+        self._track_config: _TrackConfig = {
             "length": length,
             "mode": mode,
             "duration": duration,

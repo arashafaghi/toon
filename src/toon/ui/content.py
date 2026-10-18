@@ -9,6 +9,8 @@ onto the screen stack); this area is the persistent pane above the REPL.
 
 from __future__ import annotations
 
+from typing import Any
+
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.widget import Widget
@@ -31,7 +33,7 @@ class ContentArea(Vertical):
     }
     """
 
-    def __init__(self, **kwargs: object) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         #: Open views, mapping the registration name to the tab's pane id.
         self._open: dict[str, str] = {}

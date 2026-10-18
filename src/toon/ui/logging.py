@@ -14,7 +14,7 @@ a non-UI thread are marshalled back onto the UI thread.
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 from rich.markup import escape
@@ -48,7 +48,7 @@ _LEVEL_STYLES: dict[str, str] = {
 class ReplLogSink:
     """A Loguru sink that renders records into the REPL output area."""
 
-    def __init__(self, app: App) -> None:
+    def __init__(self, app: App[Any]) -> None:
         self._app = app
         self._repl: Repl | None = None
         self._buffer: list[str] = []
@@ -88,7 +88,7 @@ class ReplLogSink:
             pass
 
 
-def install_logging(app: App) -> ReplLogSink:
+def install_logging(app: App[Any]) -> ReplLogSink:
     """Point Loguru's global logger at a REPL sink and return it."""
     sink = ReplLogSink(app)
     logger.remove()

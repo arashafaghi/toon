@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from textual.screen import Screen
@@ -42,7 +42,7 @@ class RegistrationError(Exception):
 
 # A factory must return a *fresh* Textual object on every call; the host never
 # reuses an already-mounted widget or screen.
-type ScreenFactory = Callable[[], Screen]
+type ScreenFactory = Callable[[], Screen[Any]]
 type WidgetFactory = Callable[[], Widget]
 
 

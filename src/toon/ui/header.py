@@ -9,10 +9,14 @@ in ``style.tcss``. Each yielded widget becomes a column in the bar.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any, cast
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
+from textual.widget import Widget
 from textual.widgets import Static
+
+from toon.ui.host import BarHost
 
 __all__ = ["CLOCK_ID", "TIME_FORMAT", "AppHeader"]
 
@@ -30,9 +34,9 @@ ITEMS_ID = "header-items"
 class AppHeader(Horizontal):
     """Header bar: title, plugin items, and a live clock."""
 
-    def __init__(self, **kwargs: object) -> None:
+    def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self._items: dict[str, object] = {}
+        self._items: dict[str, Widget] = {}
 
     def compose(self) -> ComposeResult:
         """Yield the header segments, left to right."""
@@ -60,7 +64,7 @@ class AppHeader(Horizontal):
         container = self.query_one(f"#{ITEMS_ID}", Horizontal)
         wanted = {
             item.name: item
-            for item in self.app.registry.header_items()
+            for item in self._host().registry.header_items()
             if item.view is None or item.view in open_views
         }
         for name, widget in self._items.items():
@@ -77,3 +81,7 @@ class AppHeader(Horizontal):
     def _now() -> str:
         """Return the current wall-clock time as text."""
         return datetime.now().strftime(TIME_FORMAT)
+
+    def _host(self) -> BarHost:
+        """The host app, viewed through the slice this bar needs."""
+        return cast("BarHost", self.app)
