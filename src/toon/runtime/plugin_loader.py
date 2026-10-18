@@ -16,7 +16,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from toon.api import ExtensionRegistry
+from toon.api import ExtensionRegistry, logger
 
 __all__ = ["LoadReport", "PluginResult", "discover_plugins", "load_plugins"]
 
@@ -87,12 +87,17 @@ def load_plugins(plugins_dir: Path, registry: ExtensionRegistry) -> LoadReport:
             module = _import_plugin(name, plugin_path)
             register = getattr(module, "register", None)
             if not callable(register):
-                results.append(PluginResult(name, "plugin.py has no register(registry) function"))
+                error = "plugin.py has no register(registry) function"
+                logger.warning("Plugin {!r} is invalid: {}", name, error)
+                results.append(PluginResult(name, error))
                 continue
             register(registry)
         except Exception as exc:  # noqa: BLE001 - isolation is the point
-            results.append(PluginResult(name, f"{type(exc).__name__}: {exc}"))
+            error = f"{type(exc).__name__}: {exc}"
+            logger.warning("Plugin {!r} failed to load: {}", name, error)
+            results.append(PluginResult(name, error))
             continue
+        logger.debug("Loaded plugin {!r}", name)
         results.append(PluginResult(name))
     return LoadReport(tuple(results))
 

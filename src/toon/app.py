@@ -23,6 +23,7 @@ from toon.runtime.dispatcher import Dispatcher
 from toon.runtime.plugin_loader import LoadReport, load_plugins
 from toon.runtime.registry import Registry
 from toon.ui.content import ContentArea
+from toon.ui.logging import install_logging
 from toon.ui.palette import PaletteSystemCommands, build_commands
 from toon.ui.repl import Repl
 
@@ -51,6 +52,8 @@ class ToonApp(PaletteSystemCommands, App[None]):
 
     def __init__(self, *, plugins_dir: Path | None = None) -> None:
         super().__init__()
+        # Route Loguru into the REPL before anything (including plugins) logs.
+        self.log_sink = install_logging(self)
         self.registry = Registry()
         # Built-ins first, so plugins cannot shadow them.
         self.load_report = LoadReport(())
@@ -65,6 +68,8 @@ class ToonApp(PaletteSystemCommands, App[None]):
     def on_mount(self) -> None:
         """Report the plugin load summary once the REPL is on screen."""
         repl = self.query_one(Repl)
+        # Flush log records buffered during startup (e.g. plugin loading).
+        self.log_sink.attach(repl)
         loaded = self.load_report.loaded_names
         if loaded:
             repl.write_output(f"Loaded {len(loaded)} plugin(s): {', '.join(loaded)}")

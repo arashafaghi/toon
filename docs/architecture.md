@@ -80,6 +80,8 @@ Everything below is defined in `src/toon/api/extension.py` and re-exported from
   - `output: str = ""`
   - `error: str | None = None`
   - property `ok -> bool` (``True`` when `error is None`)
+- **`logger`** — the shared Loguru logger (`from toon.api import logger`);
+  records are rendered in the REPL output area (see §10).
 - **`ExtensionRegistry`** (runtime-checkable `Protocol`):
 
 ```python
@@ -170,3 +172,28 @@ def demo_screen(ctx: CommandContext) -> str:
 | Agent B    | `src/toon/runtime/plugin_loader.py`, `plugins/`                   |
 | Agent C    | `src/toon/ui/repl.py`, `src/toon/ui/content.py`                   |
 | Integrator | `src/toon/app.py`, `pyproject.toml`, `src/toon/api/`, `README.md`, final integration |
+
+## 10. Logging
+
+Logging uses **Loguru**. Plugins log through the public API:
+
+```python
+from toon.api import logger
+
+logger.info("widget opened for {}", name)
+```
+
+At startup the host (`toon.ui.logging`) *replaces Loguru's default stderr sink*
+with a sink that renders each record into the REPL output area
+(`#repl-log`) using Loguru's full default line
+(`time | level | name:function:line - message`), coloured by level. So host and
+plugin logs land in the same place you type commands.
+
+Details:
+
+- Records emitted **before the REPL is mounted** (plugins are imported and
+  registered during `ToonApp.__init__`) are **buffered** and flushed on mount.
+- Records emitted from a **non-UI thread** are marshalled onto the UI thread
+  (`call_from_thread`), so sinks are safe to use from workers.
+- The sink never raises into the caller; a failing write is swallowed.
+- Level and format live in `toon/ui/logging.py` (`LOG_LEVEL`, `LOG_FORMAT`).

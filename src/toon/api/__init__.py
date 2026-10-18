@@ -8,7 +8,12 @@ from the host::
 
     def register(registry: ExtensionRegistry) -> None:
         registry.register_command(Command("greet", greet, "Say hello."))
+
+Plugins can also log with ``from toon.api import logger``; records are shown in
+the host's REPL output area.
 """
+
+from loguru import logger
 
 from toon.api.extension import (
     Command,
@@ -32,4 +37,5 @@ __all__ = [
     "ScreenFactory",
     "ViewHost",
     "WidgetFactory",
+    "logger",
 ]
