@@ -23,6 +23,7 @@ from toon.runtime.dispatcher import Dispatcher
 from toon.runtime.plugin_loader import LoadReport, load_plugins
 from toon.runtime.registry import Registry
 from toon.ui.content import ContentArea
+from toon.ui.palette import PaletteSystemCommands, build_commands
 from toon.ui.repl import Repl
 
 _PLUGINS_ENV = "TOON_PLUGINS_DIR"
@@ -35,7 +36,7 @@ def _plugins_dir() -> Path:
     return Path(override) if override else Path.cwd() / "plugins"
 
 
-class ToonApp(App[None]):
+class ToonApp(PaletteSystemCommands, App[None]):
     """Interactive REPL host with local plugin support."""
 
     # Load styles from the external file
@@ -44,6 +45,9 @@ class ToonApp(App[None]):
     BINDINGS = [
         Binding("escape", "pop_view", "Back", show=False),
     ]
+
+    # Command palette contents live in toon.ui.palette.
+    COMMANDS = build_commands()
 
     def __init__(self, *, plugins_dir: Path | None = None) -> None:
         super().__init__()
@@ -89,6 +93,12 @@ class ToonApp(App[None]):
         while len(self.screen_stack) > 1:
             self.pop_screen()
         self.query_one(ContentArea).show_message(_EMPTY_STATE_MESSAGE)
+
+    # --- Command palette ---------------------------------------------------
+
+    async def run_command(self, name: str) -> None:
+        """Run a registered command selected in the palette, via the REPL."""
+        await self.query_one(Repl).run(name)
 
     # --- Actions -----------------------------------------------------------
 

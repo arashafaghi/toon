@@ -53,10 +53,18 @@ class Repl(Vertical):
             self._input.focus()
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Echo the line, dispatch it, render the result, and refocus."""
+        """Dispatch the submitted line and refocus the input."""
         line = event.value
         event.input.value = ""
+        await self.run(line)
+        event.input.focus()
 
+    async def run(self, line: str) -> None:
+        """Echo ``line``, dispatch it, and render the result.
+
+        Shared by the REPL input and the command palette so both paths behave
+        identically. Blank input does nothing.
+        """
         if line.strip() == "":
             return
 
@@ -68,8 +76,6 @@ class Repl(Vertical):
             self._write(f"[red]{result.error}[/red]")
         elif result.output:
             self._write(result.output)
-
-        event.input.focus()
 
     def clear_output(self) -> None:
         """Clear the REPL output log."""

@@ -1,7 +1,7 @@
 ---
 description: Implements assigned Healthytoon features within the existing architecture
 mode: subagent
-model: openrouter/deepseek/deepseek-v4.1-flash
+model: opencode/deepseek-v4.1-flash-free
 ---
 
 You are the implementation specialist for Healthytoon.
