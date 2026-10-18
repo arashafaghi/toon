@@ -124,6 +124,12 @@ Duplicate or invalid names raise `RegistrationError`.
   while the REPL stays usable. Screen contributions are **pushed onto the
   Textual screen stack** and **`Escape` pops back** to the REPL. The REPL lives
   on the base screen and is **never destroyed**.
+- The base screen is framed by two **host-owned, plugin-free** bars: a header
+  (`toon/ui/header.py`) with the title and a live clock, and a footer
+  (`toon/ui/footer.py`) listing every visible key binding plus the
+  command-palette hint. Add a shortcut simply by adding a `Binding(...,
+  show=True)` to `ToonApp.BINDINGS`; add extra segments/hints via
+  `AppHeader.build_segments` and `AppFooter.EXTRA_HINTS`.
 
 ### Command-to-view mechanism (worked example)
 

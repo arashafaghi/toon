@@ -7,7 +7,8 @@ navigate to registered UI contributions without touching app internals.
 Startup order is deliberate: built-in commands are registered *first* so a
 plugin can never shadow ``help``/``clear``/``plugins``; then local plugins are
 discovered under ``plugins/`` and loaded, with per-plugin failures reported in
-the REPL. Layout (base screen): a persistent content area above the REPL.
+the REPL. Layout (base screen): header on top, a persistent content area, the
+REPL, and a footer that lists the visible key bindings.
 """
 
 from __future__ import annotations
@@ -23,6 +24,8 @@ from toon.runtime.dispatcher import Dispatcher
 from toon.runtime.plugin_loader import LoadReport, load_plugins
 from toon.runtime.registry import Registry
 from toon.ui.content import ContentArea
+from toon.ui.footer import AppFooter
+from toon.ui.header import AppHeader
 from toon.ui.logging import install_logging
 from toon.ui.palette import PaletteSystemCommands, build_commands
 from toon.ui.repl import Repl
@@ -43,7 +46,12 @@ class ToonApp(PaletteSystemCommands, App[None]):
     # Load styles from the external file
     CSS_PATH = "style.tcss"
 
+    TITLE = "Toon"
+
+    # Bindings with ``show=True`` appear in the footer automatically; the
+    # command-palette hint is added by the footer as well.
     BINDINGS = [
+        Binding("ctrl+q", "quit", "Quit", show=True),
         Binding("escape", "pop_view", "Back", show=False),
     ]
 
@@ -62,8 +70,10 @@ class ToonApp(PaletteSystemCommands, App[None]):
         self.dispatcher = Dispatcher(self.registry)
 
     def compose(self) -> ComposeResult:
+        yield AppHeader(id="header")
         yield ContentArea(id="content")
         yield Repl(self.dispatcher, self, id="repl")
+        yield AppFooter(id="footer")
 
     def on_mount(self) -> None:
         """Report the plugin load summary once the REPL is on screen."""

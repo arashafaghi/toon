@@ -45,3 +45,26 @@ Screen {
     color: #f85149;
     text-style: bold;
 }
+
+/* --- Header & Footer (host-owned, no plugin) --- */
+#header {
+    height: 1;
+    background: #161b22;
+    color: #c9d1d9;
+    padding: 0 1;
+}
+
+#header-title {
+    width: 1fr;
+    text-style: bold;
+}
+
+#header-clock {
+    width: auto;
+    color: #8b949e;
+}
+
+#footer {
+    background: #161b22;
+    color: #8b949e;
+}
