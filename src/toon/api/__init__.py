@@ -29,6 +29,13 @@ from toon.api.extension import (
     ViewHost,
     WidgetFactory,
 )
+from toon.api.jenkins import (
+    BuildStatus,
+    JenkinsBuild,
+    JenkinsJob,
+    JenkinsProvider,
+    JenkinsProviderError,
+)
 
 if TYPE_CHECKING:
     # Re-exported lazily (see __getattr__) so importing ``toon.api`` never pulls
@@ -57,11 +64,13 @@ if TYPE_CHECKING:
         render_edge,
         render_track,
     )
+    from toon.monitoring.provider import get_jenkins_provider
 
 __all__ = [
     "Auth",
     "BasicAuth",
     "BearerAuth",
+    "BuildStatus",
     "Command",
     "CommandContext",
     "CommandHandler",
@@ -76,6 +85,10 @@ __all__ = [
     "HttpClient",
     "HttpError",
     "HttpResponse",
+    "JenkinsBuild",
+    "JenkinsJob",
+    "JenkinsProvider",
+    "JenkinsProviderError",
     "NetrcAuth",
     "NoAuth",
     "RegistrationError",
@@ -86,6 +99,7 @@ __all__ = [
     "Spinner",
     "ViewHost",
     "WidgetFactory",
+    "get_jenkins_provider",
     "logger",
     "render_edge",
     "render_track",
@@ -121,6 +135,7 @@ _LAZY_EXPORTS: dict[str, frozenset[str]] = {
             "render_track",
         }
     ),
+    "toon.monitoring.provider": frozenset({"get_jenkins_provider"}),
 }
 
 

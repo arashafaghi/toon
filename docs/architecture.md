@@ -25,6 +25,8 @@ The runtime/extension API deliberately keeps Textual types at the UI boundary;
 ```text
 src/toon/app.py              # Textual app + entry point            (M1)
 src/toon/api/extension.py    # public extension API (frozen)
+src/toon/api/jenkins.py      # monitoring data contract (Jenkins)
+src/toon/monitoring/         # fixture provider + provider selection
 src/toon/runtime/registry.py     # command/UI registry            (M1/M2)
 src/toon/runtime/dispatcher.py   # parse + dispatch commands       (M1/M2)
 src/toon/runtime/plugin_loader.py# discover + load plugins          (M1/M2)
@@ -116,6 +118,71 @@ with ``view=None`` it lives for the whole session.
 
 `title` is the label shown for the view's tab when it is opened; it defaults to
 `name`. Duplicate or invalid names raise `RegistrationError`.
+
+### Monitoring data contract (`toon.api.jenkins`)
+
+The Jenkins monitoring feature depends only on the models and protocol in
+`src/toon/api/jenkins.py`; it never talks to Jenkins directly. Providers
+translate their source (fixtures at home, the real adapter at work) into these
+types:
+
+- **`BuildStatus`** (`StrEnum`) — `SUCCESS`, `FAILURE`, `RUNNING`, `ABORTED`,
+  `UNSTABLE`, `NOT_BUILT`, or `UNKNOWN`.
+- **`JenkinsBuild`** (frozen, slotted dataclass) — `number`, `status`, `url`,
+  optional timezone-aware `started_at`, and optional `duration_seconds`.
+- **`JenkinsJob`** (frozen, slotted dataclass) — `name`, optional
+  `latest_build` (`None` when the job has never built), and `url`.
+- **`JenkinsProviderError(Exception)`** — a provider failure whose message is
+  safe to show in the UI (no credentials or internal endpoints).
+- **`JenkinsProvider`** (runtime-checkable `Protocol`):
+  - `async list_jobs() -> Sequence[JenkinsJob]` — every visible job, including
+    jobs with no builds.
+  - `async get_build(job_name: str, build_number: int) -> JenkinsBuild` — one
+    build, or `JenkinsProviderError` if it cannot be fetched.
+
+### Jenkins fixtures (`toon.monitoring`)
+
+Local development uses an in-memory provider, so no Jenkins server or
+credentials are needed:
+
+```python
+from toon.api import get_jenkins_provider
+
+provider = get_jenkins_provider()
+jobs = await provider.list_jobs()
+```
+
+`FixtureJenkinsProvider` contains invented successful, failed, running,
+unstable, and never-built jobs. The default data is fixed and deterministic.
+
+Provider selection is currently fixture-only and configured by environment
+variables:
+
+| Variable | Values | Meaning |
+| --- | --- | --- |
+| `TOON_JENKINS_FIXTURE` | `default`, `empty`, `error` | Data shape (default: `default`) |
+| `TOON_JENKINS_FIXTURE_DELAY` | seconds, e.g. `1.5` | Artificial delay per request |
+
+For example, `TOON_JENKINS_FIXTURE=error TOON_JENKINS_FIXTURE_DELAY=1.5 uv run toon`
+exercises both a slow request and the UI's provider-error path. The fixture
+provider lives in `src/toon/monitoring/fixtures.py`; `get_jenkins_provider()`
+is the single selection point for replacing it with the private work adapter.
+
+### Jenkins monitoring view
+
+`plugins/jenkins_monitor/plugin.py` contributes the `jenkins` command and a
+**Jenkins** tab. It imports only `toon.api` plus Textual; all data comes through
+`JenkinsProvider`, so fixture and real data follow exactly the same UI path.
+
+- The table lists every job with its latest build number, status, and start time.
+- Moving the row cursor selects a job and loads its latest build through
+  `get_build`; the detail panel shows status, start, duration, and URL.
+- Jobs with no builds, an empty job list, loading, and provider errors each have
+  explicit states in the same view.
+- **Refresh** re-runs `list_jobs`; the spinner is visible while a request is in
+  flight, including the artificial fixture delay.
+
+Try it with `TOON_JENKINS_FIXTURE=error uv run toon`, then run `jenkins`.
 
 ### Reusable UI widgets (`toon.api.widgets`)
 
