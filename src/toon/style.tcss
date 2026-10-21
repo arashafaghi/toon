@@ -30,6 +30,12 @@ Screen {
     color: #8b949e;
 }
 
+#repl-spinner {
+    height: 1;
+    color: #d29922;
+    padding: 0 1;
+}
+
 /* Status colors for text markup */
 .status-success {
     color: #3fb950;

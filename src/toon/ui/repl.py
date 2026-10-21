@@ -9,6 +9,9 @@ The input keeps a command history (persisted by the host). ``Up``/``Down`` walk
 the history with **prefix matching** — like bash's ``history-search-backward`` /
 ``history-search-forward`` — so typing ``gh`` then ``Up`` cycles only through
 past commands starting with ``gh``.
+
+While a command is running (async handlers can await I/O), a busy spinner is
+shown above the input and hidden again when the command finishes.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from textual.containers import Vertical
 from textual.widgets import Input, RichLog
 
 from toon.api import ViewHost
+from toon.api.widgets import Spinner
 from toon.runtime.dispatcher import Dispatcher
 
 #: How many recent commands to remember.
@@ -48,6 +52,7 @@ class Repl(Vertical):
         self.dispatcher = dispatcher
         self.host = host
         self._log: RichLog | None = None
+        self._spinner: Spinner | None = None
         self._input: Input | None = None
         self._history: list[str] = list(history)
         self._on_history_changed = on_history_changed
@@ -66,7 +71,9 @@ class Repl(Vertical):
             placeholder="Type a command and press Enter (try 'help')",
             id="repl-input",
         )
+        self._spinner = Spinner(autostart=False, id="repl-spinner")
         yield self._log
+        yield self._spinner
         yield self._input
 
     def on_mount(self) -> None:
@@ -94,7 +101,15 @@ class Repl(Vertical):
 
         self._write(f"> {line}")
 
-        result = await self.dispatcher.dispatch(line, host=self.host)
+        name = line.split(maxsplit=1)[0]
+        spinner = self._spinner
+        if spinner is not None:
+            spinner.start(f"Running {name}...")
+        try:
+            result = await self.dispatcher.dispatch(line, host=self.host)
+        finally:
+            if spinner is not None:
+                spinner.stop()
 
         if result.error is not None:
             self._write(f"[red]{result.error}[/red]")

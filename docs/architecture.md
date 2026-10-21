@@ -139,6 +139,13 @@ are re-exported lazily (so `import toon.api` never imports Textual):
   `length`, `orientation` (`"horizontal"`/`"vertical"`), `direction`, `duration`,
   `traversals` (`None` loops forever), and the `wire`/`packet`/`trail` glyphs.
   It owns `start`/`pause`/`resume`/`restart`, `is_done`, and `on_finished`.
+- **`Spinner`** — a one-line busy indicator with built-in Unicode and ASCII
+  presets (default: the rotating braille dots `⣾⣽⣻⢿⡿⣟⣯⣷`) and an optional
+  label. It mounts hidden; `start("Fetching…")` reveals and animates it, and
+  `stop()` freezes and hides it. Pick a preset with `Spinner(preset="z_arrow")`,
+  pass custom `frames=`, or switch at runtime with `set_preset()`; all names and
+  frames are in `SPINNER_PRESETS`. `braille_random` picks a random braille
+  character each tick. The REPL uses one while an async command runs.
 
 ### HTTP client (`toon.api.http`)
 

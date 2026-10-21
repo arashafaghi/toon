@@ -16,16 +16,81 @@ Textual.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import random
+from collections.abc import Callable, Sequence
 from typing import Any, Literal, TypedDict
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.message import Message
 from textual.reactive import reactive
+from textual.timer import Timer
 from textual.widgets import Static
 
-__all__ = ["FlowEdge", "FlowLane", "FlowMode", "FlowTrack", "render_edge", "render_track"]
+__all__ = [
+    "DEFAULT_SPINNER_PRESET",
+    "FlowEdge",
+    "FlowLane",
+    "FlowMode",
+    "FlowTrack",
+    "SPINNER_FRAMES",
+    "SPINNER_PRESETS",
+    "SPINNER_RANDOM_PRESETS",
+    "Spinner",
+    "render_edge",
+    "render_track",
+]
+
+#: Busy-spinner presets. Each value is a sequence of one-cell frames.
+#:
+#: ``dot_cycle`` is the default: eight braille dots arranged as a rotating
+#: spinner. ``braille_random`` covers the whole braille block and is animated
+#: randomly (see :data:`SPINNER_RANDOM_PRESETS`).
+SPINNER_PRESETS: dict[str, tuple[str, ...]] = {
+    "dot_cycle": ("⣾", "⣽", "⣻", "⢿", "⡿", "⣟", "⣯", "⣷"),
+    "braille_random": tuple(chr(codepoint) for codepoint in range(0x2800, 0x2900)),
+    "z_arrow": ("←", "↖", "↑", "↗", "→", "↘", "↓", "↙"),
+    "z_b": ("b", "ᓂ", "q", "ᓄ"),
+    "z_d": ("d", "ᓇ", "p", "ᓀ"),
+    "z_bar": ("|", "/", "—", "\\"),
+    "z_x": ("x", "+"),
+    "z_1": ("◰", "◳", "◲", "◱"),
+    "z_2": ("◴", "◷", "◶", "◵"),
+    "z_3": ("◐", "◓", "◑", "◒"),
+    "y_d": ("d", "|", "b", "|"),
+    "y_q": ("q", "|", "p", "|"),
+    "x_b": ("ᓂ", "—", "ᓄ", "—"),
+    "x_d": ("ᓇ", "—", "ᓀ", "—"),
+    "grow_a": ("|", "b", "O", "b"),
+    "grow_b": ("_", "o", "O", "o"),
+    "grow_c": (".", "o", "O", "@", "*", " "),
+    "grow_d": ("▁", "▃", "▄", "▅", "▆", "▇", "█", "▇", "▆", "▅", "▄", "▃"),
+    "grow_e": (
+        "▉",
+        "▊",
+        "▋",
+        "▌",
+        "▍",
+        "▎",
+        "▏",
+        "▎",
+        "▍",
+        "▌",
+        "▋",
+        "▊",
+        "▉",
+    ),
+}
+
+#: Preset used when :class:`Spinner` is constructed without ``frames``/``preset``.
+DEFAULT_SPINNER_PRESET = "dot_cycle"
+
+#: Default spinner frames (the rotating braille dots).
+SPINNER_FRAMES: tuple[str, ...] = SPINNER_PRESETS[DEFAULT_SPINNER_PRESET]
+
+#: Presets whose frames are chosen randomly instead of in sequence.
+SPINNER_RANDOM_PRESETS: frozenset[str] = frozenset({"braille_random"})
+
 
 #: ``"ping-pong"`` reverses at each end; ``"one-way"`` loops back to the start.
 FlowMode = Literal["ping-pong", "one-way"]
@@ -512,3 +577,170 @@ class FlowEdge(Static):
             self._last = text
             # Emphasise the packet so the glow reads on a dim wire.
             self.update(text.replace(self._packet, f"[bold]{self._packet}[/]", 1))
+
+
+# --- busy spinner -----------------------------------------------------------
+
+
+def _frames_for_preset(preset: str) -> tuple[str, ...]:
+    """Return a preset's frames, raising a helpful error for unknown names."""
+    try:
+        return SPINNER_PRESETS[preset]
+    except KeyError:
+        choices = ", ".join(SPINNER_PRESETS)
+        raise ValueError(f"unknown spinner preset {preset!r}; choose from: {choices}") from None
+
+
+class Spinner(Static):
+    """A one-line busy indicator with Unicode and ASCII presets.
+
+    The default preset is a rotating braille spinner (``⣾⣽⣻⢿⡿⣟⣯⣷``),
+    one frame every 120 ms. Pick a built-in preset with ``preset=``, pass custom
+    ``frames=``, or switch presets at runtime with :meth:`set_preset`::
+
+        spinner = Spinner(preset="z_arrow")
+        spinner.start("Fetching builds...")
+        ...
+        spinner.stop()
+
+    ``preset="braille_random"`` chooses a random character from the whole
+    braille block on every tick. See :data:`SPINNER_PRESETS` for all presets.
+    """
+
+    DEFAULT_CSS = """
+    Spinner {
+        height: 1;
+        width: auto;
+    }
+    Spinner.hidden {
+        display: none;
+    }
+    """
+
+    def __init__(
+        self,
+        *,
+        frames: Sequence[str] | None = None,
+        preset: str | None = None,
+        interval: float = 0.12,
+        label: str = "",
+        autostart: bool = False,
+        randomize: bool | None = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__("", markup=False, **kwargs)
+        if preset is not None and frames is not None:
+            raise ValueError("pass either preset= or frames=, not both")
+
+        if preset is not None:
+            self._preset: str | None = preset
+            self._frames = _frames_for_preset(preset)
+            self._randomize = preset in SPINNER_RANDOM_PRESETS if randomize is None else randomize
+        else:
+            custom = tuple(frames) if frames is not None else SPINNER_FRAMES
+            if not custom:
+                raise ValueError("frames must not be empty")
+            self._preset = None
+            self._frames = custom
+            self._randomize = bool(randomize)
+
+        self._interval = interval
+        self._label = label
+        self._autostart = autostart
+        self._index = 0
+        self._timer: Timer | None = None
+        self.add_class("hidden")
+
+    # --- lifecycle ---------------------------------------------------------
+
+    def on_mount(self) -> None:
+        """Render the first frame, and start immediately if requested."""
+        self._paint()
+        if self._autostart:
+            self.start()
+
+    def on_unmount(self) -> None:
+        """Stop the timer so it cannot outlive the widget."""
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
+
+    # --- control -----------------------------------------------------------
+
+    @property
+    def is_spinning(self) -> bool:
+        """Whether the spinner is currently animating."""
+        return self._timer is not None
+
+    @property
+    def label(self) -> str:
+        """Text shown after the spinning frame."""
+        return self._label
+
+    @label.setter
+    def label(self, value: str) -> None:
+        self._label = value
+        self._paint()
+
+    @property
+    def preset(self) -> str | None:
+        """Selected preset name, or ``None`` when using custom frames."""
+        return self._preset
+
+    @preset.setter
+    def preset(self, value: str) -> None:
+        self.set_preset(value)
+
+    @property
+    def frames(self) -> tuple[str, ...]:
+        """The frame sequence currently in use."""
+        return self._frames
+
+    @property
+    def randomize(self) -> bool:
+        """Whether a random frame is chosen on each tick."""
+        return self._randomize
+
+    @randomize.setter
+    def randomize(self, value: bool) -> None:
+        self._randomize = value
+
+    def set_preset(self, preset: str) -> None:
+        """Switch to a built-in preset and reset to its first frame."""
+        frames = _frames_for_preset(preset)
+        self._preset = preset
+        self._frames = frames
+        self._randomize = preset in SPINNER_RANDOM_PRESETS
+        self._index = 0
+        self._paint()
+
+    def start(self, label: str | None = None) -> None:
+        """Show the spinner and start (or restart) animating."""
+        if label is not None:
+            self._label = label
+        self._index = 0
+        self.remove_class("hidden")
+        self._paint()
+        if self._timer is None:
+            self._timer = self.set_interval(self._interval, self._tick)
+
+    def stop(self, *, hide: bool = True) -> None:
+        """Stop animating, optionally hiding the widget (the default)."""
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer = None
+        if hide:
+            self.add_class("hidden")
+
+    # --- rendering ---------------------------------------------------------
+
+    def _tick(self) -> None:
+        if self._randomize:
+            self._index = random.randrange(len(self._frames))
+        else:
+            self._index = (self._index + 1) % len(self._frames)
+        self._paint()
+
+    def _paint(self) -> None:
+        frame = self._frames[self._index]
+        self.update(f"{frame} {self._label}".rstrip())

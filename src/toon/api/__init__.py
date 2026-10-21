@@ -45,10 +45,15 @@ if TYPE_CHECKING:
         NoAuth,
     )
     from toon.api.widgets import (
+        DEFAULT_SPINNER_PRESET,
+        SPINNER_FRAMES,
+        SPINNER_PRESETS,
+        SPINNER_RANDOM_PRESETS,
         FlowEdge,
         FlowLane,
         FlowMode,
         FlowTrack,
+        Spinner,
         render_edge,
         render_track,
     )
@@ -61,6 +66,7 @@ __all__ = [
     "CommandContext",
     "CommandHandler",
     "CommandResult",
+    "DEFAULT_SPINNER_PRESET",
     "ExtensionRegistry",
     "FlowEdge",
     "FlowLane",
@@ -73,7 +79,11 @@ __all__ = [
     "NetrcAuth",
     "NoAuth",
     "RegistrationError",
+    "SPINNER_FRAMES",
+    "SPINNER_PRESETS",
+    "SPINNER_RANDOM_PRESETS",
     "ScreenFactory",
+    "Spinner",
     "ViewHost",
     "WidgetFactory",
     "logger",
@@ -97,7 +107,19 @@ _LAZY_EXPORTS: dict[str, frozenset[str]] = {
         }
     ),
     "toon.api.widgets": frozenset(
-        {"FlowEdge", "FlowLane", "FlowMode", "FlowTrack", "render_edge", "render_track"}
+        {
+            "DEFAULT_SPINNER_PRESET",
+            "FlowEdge",
+            "FlowLane",
+            "FlowMode",
+            "FlowTrack",
+            "SPINNER_FRAMES",
+            "SPINNER_PRESETS",
+            "SPINNER_RANDOM_PRESETS",
+            "Spinner",
+            "render_edge",
+            "render_track",
+        }
     ),
 }
 
